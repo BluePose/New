@@ -32,6 +32,9 @@ let connectedUsers = 0;
 const AI_PASSWORD = '5001';
 const isAIUser = new Map();
 
+// 대화 기록 저장 (최근 50개 메시지)
+const conversationHistory = [];
+
 // 서버 상태 확인용 엔드포인트
 app.get('/health', (req, res) => {
     res.status(200).send('OK');
@@ -46,10 +49,10 @@ io.on('connection', (socket) => {
         if (password === AI_PASSWORD) {
             isAIUser.set(socket.id, true);
             socket.emit('ai_verified', true);
-            console.log('AI 인증 성공');
+            console.log('AI 인증 성공:', socket.id);
         } else {
             socket.emit('ai_verified', false);
-            console.log('AI 인증 실패');
+            console.log('AI 인증 실패:', socket.id);
         }
     });
 
@@ -58,6 +61,7 @@ io.on('connection', (socket) => {
         users.set(socket.id, username);
         connectedUsers++;
         console.log(`${username}님이 입장하셨습니다. 현재 접속자 수: ${connectedUsers}`);
+        console.log('AI 사용자 여부:', isAIUser.get(socket.id));
         
         // 입장 메시지 브로드캐스트
         io.emit('chat message', {
@@ -73,6 +77,9 @@ io.on('connection', (socket) => {
     socket.on('chat message', async (msg) => {
         const username = users.get(socket.id);
         if (username) {
+            console.log('메시지 수신:', username, msg);
+            console.log('AI 사용자 여부:', isAIUser.get(socket.id));
+
             // 일반 메시지 전송
             io.emit('chat message', {
                 type: 'user',
@@ -80,28 +87,68 @@ io.on('connection', (socket) => {
                 message: msg
             });
 
+            // 대화 기록에 메시지 추가
+            conversationHistory.push({
+                role: 'user',
+                content: msg,
+                username: username
+            });
+
+            // 대화 기록이 50개를 초과하면 가장 오래된 메시지 제거
+            if (conversationHistory.length > 50) {
+                conversationHistory.shift();
+            }
+
             // AI 사용자인 경우 응답 생성
             if (isAIUser.get(socket.id)) {
                 try {
                     console.log('AI 응답 생성 시도');
+                    
+                    // 현재 대화방의 모든 사용자 이름 목록 생성
+                    const userList = Array.from(users.values()).join(', ');
+                    
+                    // AI의 이름 가져오기
+                    const aiUsername = username;
+
                     const completion = await openai.createChatCompletion({
                         model: "gpt-3.5-turbo",
                         messages: [
                             {
                                 role: "system",
-                                content: "당신은 채팅방에서 자연스럽게 대화하는 사용자입니다. 짧고 자연스러운 대화를 나누세요."
+                                content: `당신은 채팅방에서 자연스럽게 대화하는 사용자입니다. 당신의 이름은 ${aiUsername}입니다.
+현재 채팅방의 사용자들: ${userList}
+
+다음 규칙을 따라 대화하세요:
+1. 다른 사용자들이 당신의 이름(${aiUsername})을 언급하면 즉시 반응하세요.
+2. 다른 사용자들의 대화 스타일을 참고하여 비슷한 톤과 방식으로 대화하세요.
+3. 짧고 자연스러운 대화를 나누세요.
+4. 이모티콘을 적절히 사용하세요.
+5. 다른 사용자들에게 질문을 하거나 대화를 이어가세요.
+6. 채팅방의 분위기에 맞춰 대화하세요.
+7. 당신은 진짜 사람처럼 행동해야 합니다.`
                             },
-                            {
-                                role: "user",
-                                content: msg
-                            }
+                            ...conversationHistory.map(msg => ({
+                                role: msg.role,
+                                content: msg.content,
+                                name: msg.username
+                            }))
                         ],
-                        max_tokens: 100
+                        max_tokens: 150,
+                        temperature: 0.8,
+                        presence_penalty: 0.6,
+                        frequency_penalty: 0.3
                     });
 
                     const aiResponse = completion.data.choices[0].message.content;
                     console.log('AI 응답:', aiResponse);
                     
+                    // AI 응답을 대화 기록에 추가
+                    conversationHistory.push({
+                        role: 'assistant',
+                        content: aiResponse,
+                        username: aiUsername
+                    });
+
                     // AI 응답 전송
                     io.emit('chat message', {
                         type: 'user',
@@ -110,6 +157,11 @@ io.on('connection', (socket) => {
                     });
                 } catch (error) {
                     console.error('OpenAI API 오류:', error);
+                    // 에러 발생 시 사용자에게 알림
+                    io.emit('chat message', {
+                        type: 'system',
+                        message: 'AI 응답 생성 중 오류가 발생했습니다.'
+                    });
                 }
             }
         }
