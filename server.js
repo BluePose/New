@@ -99,23 +99,24 @@ io.on('connection', (socket) => {
                 conversationHistory.shift();
             }
 
-            // AI 사용자인 경우 응답 생성
-            if (isAIUser.get(socket.id)) {
-                try {
-                    console.log('AI 응답 생성 시도');
-                    
-                    // 현재 대화방의 모든 사용자 이름 목록 생성
-                    const userList = Array.from(users.values()).join(', ');
-                    
-                    // AI의 이름 가져오기
-                    const aiUsername = username;
+            // AI 사용자들에게 메시지 전달
+            for (const [socketId, isAI] of isAIUser.entries()) {
+                if (isAI) {
+                    try {
+                        console.log('AI 응답 생성 시도');
+                        
+                        // 현재 대화방의 모든 사용자 이름 목록 생성
+                        const userList = Array.from(users.values()).join(', ');
+                        
+                        // AI의 이름 가져오기
+                        const aiUsername = users.get(socketId);
 
-                    const completion = await openai.createChatCompletion({
-                        model: "gpt-3.5-turbo",
-                        messages: [
-                            {
-                                role: "system",
-                                content: `당신은 채팅방에서 자연스럽게 대화하는 사용자입니다. 당신의 이름은 ${aiUsername}입니다.
+                        const completion = await openai.createChatCompletion({
+                            model: "gpt-3.5-turbo",
+                            messages: [
+                                {
+                                    role: "system",
+                                    content: `당신은 채팅방에서 자연스럽게 대화하는 사용자입니다. 당신의 이름은 ${aiUsername}입니다.
 현재 채팅방의 사용자들: ${userList}
 
 다음 규칙을 따라 대화하세요:
@@ -125,43 +126,45 @@ io.on('connection', (socket) => {
 4. 이모티콘을 적절히 사용하세요.
 5. 다른 사용자들에게 질문을 하거나 대화를 이어가세요.
 6. 채팅방의 분위기에 맞춰 대화하세요.
-7. 당신은 진짜 사람처럼 행동해야 합니다.`
-                            },
-                            ...conversationHistory.map(msg => ({
-                                role: msg.role,
-                                content: msg.content,
-                                name: msg.username
-                            }))
-                        ],
-                        max_tokens: 150,
-                        temperature: 0.8,
-                        presence_penalty: 0.6,
-                        frequency_penalty: 0.3
-                    });
+7. 당신은 진짜 사람처럼 행동해야 합니다.
+8. 다른 사용자의 메시지에 자연스럽게 반응하세요.`
+                                },
+                                ...conversationHistory.map(msg => ({
+                                    role: msg.role,
+                                    content: msg.content,
+                                    name: msg.username
+                                }))
+                            ],
+                            max_tokens: 150,
+                            temperature: 0.8,
+                            presence_penalty: 0.6,
+                            frequency_penalty: 0.3
+                        });
 
-                    const aiResponse = completion.data.choices[0].message.content;
-                    console.log('AI 응답:', aiResponse);
-                    
-                    // AI 응답을 대화 기록에 추가
-                    conversationHistory.push({
-                        role: 'assistant',
-                        content: aiResponse,
-                        username: aiUsername
-                    });
+                        const aiResponse = completion.data.choices[0].message.content;
+                        console.log('AI 응답:', aiResponse);
+                        
+                        // AI 응답을 대화 기록에 추가
+                        conversationHistory.push({
+                            role: 'assistant',
+                            content: aiResponse,
+                            username: aiUsername
+                        });
 
-                    // AI 응답 전송
-                    io.emit('chat message', {
-                        type: 'user',
-                        username: username,
-                        message: aiResponse
-                    });
-                } catch (error) {
-                    console.error('OpenAI API 오류:', error);
-                    // 에러 발생 시 사용자에게 알림
-                    io.emit('chat message', {
-                        type: 'system',
-                        message: 'AI 응답 생성 중 오류가 발생했습니다.'
-                    });
+                        // AI 응답 전송
+                        io.emit('chat message', {
+                            type: 'user',
+                            username: aiUsername,
+                            message: aiResponse
+                        });
+                    } catch (error) {
+                        console.error('OpenAI API 오류:', error);
+                        // 에러 발생 시 사용자에게 알림
+                        io.emit('chat message', {
+                            type: 'system',
+                            message: 'AI 응답 생성 중 오류가 발생했습니다.'
+                        });
+                    }
                 }
             }
         }
