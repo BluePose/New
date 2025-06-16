@@ -73,11 +73,46 @@
             color: #666;
             margin-bottom: 10px;
         }
-        .ai-verification {
-            margin-top: 10px;
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .login-form input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .ai-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             padding: 10px;
             background-color: #f8f9fa;
             border-radius: 5px;
+            margin: 10px 0;
+        }
+        .ai-option label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        .ai-option input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .ai-password-container {
+            display: none;
+            margin-top: 10px;
+        }
+        .ai-password-container.show {
+            display: block;
         }
     </style>
 </head>
@@ -85,12 +120,18 @@
     <div class="container">
         <div id="login-container">
             <h2>채팅방 입장</h2>
-            <input type="text" id="username-input" placeholder="사용자 이름을 입력하세요">
-            <button onclick="joinChat()">입장하기</button>
-            <div class="ai-verification">
-                <h3>AI 사용자 인증</h3>
-                <input type="password" id="ai-password" placeholder="AI 비밀번호">
-                <button onclick="verifyAI()">AI 인증</button>
+            <div class="login-form">
+                <input type="text" id="username-input" placeholder="사용자 이름을 입력하세요">
+                <div class="ai-option">
+                    <label>
+                        <input type="checkbox" id="ai-toggle">
+                        AI 사용자로 참여
+                    </label>
+                </div>
+                <div id="ai-password-container" class="ai-password-container">
+                    <input type="password" id="ai-password" placeholder="AI 비밀번호를 입력하세요">
+                </div>
+                <button onclick="joinChat()">입장하기</button>
             </div>
         </div>
         <div id="chat-container">
@@ -115,29 +156,52 @@
         let username = '';
         let isAI = false;
 
+        // AI 토글 처리
+        document.getElementById('ai-toggle').addEventListener('change', function(e) {
+            const passwordContainer = document.getElementById('ai-password-container');
+            if (e.target.checked) {
+                passwordContainer.classList.add('show');
+            } else {
+                passwordContainer.classList.remove('show');
+                document.getElementById('ai-password').value = '';
+            }
+        });
+
         function joinChat() {
             username = document.getElementById('username-input').value.trim();
-            if (username) {
-                document.getElementById('login-container').style.display = 'none';
-                document.getElementById('chat-container').style.display = 'block';
-                socket.emit('join', username);
-            } else {
+            const isAIToggle = document.getElementById('ai-toggle').checked;
+            
+            if (!username) {
                 alert('사용자 이름을 입력해주세요.');
+                return;
+            }
+
+            if (isAIToggle) {
+                const password = document.getElementById('ai-password').value;
+                if (!password) {
+                    alert('AI 비밀번호를 입력해주세요.');
+                    return;
+                }
+                // AI 인증 시도
+                socket.emit('verify_ai', password);
+            } else {
+                // 일반 사용자로 입장
+                enterChat(false);
             }
         }
 
-        function verifyAI() {
-            const password = document.getElementById('ai-password').value;
-            console.log('AI 인증 시도');
-            socket.emit('verify_ai', password);
+        function enterChat(aiVerified) {
+            isAI = aiVerified;
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'block';
+            socket.emit('join', username);
         }
 
         socket.on('ai_verified', (success) => {
             if (success) {
-                isAI = true;
-                alert('AI 사용자로 인증되었습니다.');
+                enterChat(true);
             } else {
-                alert('AI 인증에 실패했습니다.');
+                alert('AI 인증에 실패했습니다. 비밀번호를 확인해주세요.');
             }
         });
 
