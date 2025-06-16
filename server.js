@@ -35,6 +35,25 @@ const isAIUser = new Map();
 // 대화 기록 저장 (최근 50개 메시지)
 const conversationHistory = [];
 
+// 기본 응답 목록
+const defaultResponses = [
+    "네, 말씀해주세요! 😊",
+    "그렇군요! 더 자세히 이야기해주세요.",
+    "흥미로운 이야기네요!",
+    "그런 관점도 있군요.",
+    "좋은 의견이에요!",
+    "계속 말씀해주세요.",
+    "정말 그렇네요!",
+    "더 자세히 설명해주시겠어요?",
+    "흥미롭게 들었어요!",
+    "그런 생각을 하시다니 신기하네요."
+];
+
+// 랜덤 응답 선택 함수
+function getRandomResponse() {
+    return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
+}
+
 // 서버 상태 확인용 엔드포인트
 app.get('/health', (req, res) => {
     res.status(200).send('OK');
@@ -145,27 +164,28 @@ io.on('connection', (socket) => {
                             });
                         });
 
-                        console.log('OpenAI API 요청 데이터:', {
-                            model: "gpt-3.5-turbo",
-                            messages: messages,
-                            max_tokens: 150,
-                            temperature: 0.8
-                        });
+                        let aiResponse;
+                        try {
+                            const completion = await openai.createChatCompletion({
+                                model: "gpt-3.5-turbo",
+                                messages: messages,
+                                max_tokens: 150,
+                                temperature: 0.8,
+                                presence_penalty: 0.6,
+                                frequency_penalty: 0.3
+                            });
 
-                        const completion = await openai.createChatCompletion({
-                            model: "gpt-3.5-turbo",
-                            messages: messages,
-                            max_tokens: 150,
-                            temperature: 0.8,
-                            presence_penalty: 0.6,
-                            frequency_penalty: 0.3
-                        });
+                            aiResponse = completion.data.choices[0].message.content;
+                            console.log('AI 응답:', aiResponse);
+                        } catch (apiError) {
+                            console.error('OpenAI API 오류:', apiError);
+                            // API 오류 발생 시 기본 응답 사용
+                            aiResponse = getRandomResponse();
+                            console.log('기본 응답 사용:', aiResponse);
+                        }
 
-                        const aiResponse = completion.data.choices[0].message.content;
-                        console.log('AI 응답:', aiResponse);
-                        
                         if (!aiResponse) {
-                            throw new Error('AI 응답이 비어있습니다.');
+                            aiResponse = getRandomResponse();
                         }
 
                         // AI 응답을 대화 기록에 추가
@@ -182,13 +202,13 @@ io.on('connection', (socket) => {
                             message: aiResponse
                         });
                     } catch (error) {
-                        console.error('OpenAI API 오류:', error);
-                        console.error('오류 상세:', error.response?.data || error.message);
-                        
-                        // 에러 발생 시 사용자에게 알림
+                        console.error('전체 처리 오류:', error);
+                        // 에러 발생 시 기본 응답 사용
+                        const fallbackResponse = getRandomResponse();
                         io.emit('chat message', {
-                            type: 'system',
-                            message: 'AI 응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+                            type: 'user',
+                            username: users.get(socketId),
+                            message: fallbackResponse
                         });
                     }
                 }
