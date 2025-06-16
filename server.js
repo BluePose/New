@@ -28,23 +28,28 @@ app.use(express.static('public', {
 const users = new Map();
 let connectedUsers = 0;
 
+// AI 사용자 인증
+const AI_PASSWORD = '5001';
+const isAIUser = new Map();
+
 // 서버 상태 확인용 엔드포인트
 app.get('/health', (req, res) => {
     res.status(200).send('OK');
 });
 
-// AI 사용자 인증
-const AI_PASSWORD = '5001';
-const isAIUser = new Map();
-
 io.on('connection', (socket) => {
+    console.log('새로운 사용자 연결됨');
+
     // AI 사용자 인증 처리
     socket.on('verify_ai', (password) => {
+        console.log('AI 인증 시도:', password);
         if (password === AI_PASSWORD) {
             isAIUser.set(socket.id, true);
             socket.emit('ai_verified', true);
+            console.log('AI 인증 성공');
         } else {
             socket.emit('ai_verified', false);
+            console.log('AI 인증 실패');
         }
     });
 
@@ -78,6 +83,7 @@ io.on('connection', (socket) => {
             // AI 사용자인 경우 응답 생성
             if (isAIUser.get(socket.id)) {
                 try {
+                    console.log('AI 응답 생성 시도');
                     const completion = await openai.createChatCompletion({
                         model: "gpt-3.5-turbo",
                         messages: [
@@ -94,6 +100,7 @@ io.on('connection', (socket) => {
                     });
 
                     const aiResponse = completion.data.choices[0].message.content;
+                    console.log('AI 응답:', aiResponse);
                     
                     // AI 응답 전송
                     io.emit('chat message', {
