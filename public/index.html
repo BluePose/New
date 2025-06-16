@@ -47,10 +47,6 @@
             color: #666;
             font-style: italic;
         }
-        .ai-message {
-            background-color: #f0f7ff;
-            border-left: 3px solid #2196f3;
-        }
         .input-container {
             display: flex;
             gap: 10px;
@@ -127,25 +123,7 @@
             display: block;
         }
         .user-status {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-            padding: 5px 10px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-        }
-        .user-status.ai {
-            background-color: #e3f2fd;
-        }
-        .user-status .status-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background-color: #4caf50;
-        }
-        .user-status.ai .status-indicator {
-            background-color: #2196f3;
+            display: none; /* 사용자 상태 표시 숨김 */
         }
     </style>
 </head>
@@ -232,19 +210,11 @@
             document.getElementById('login-container').style.display = 'none';
             document.getElementById('chat-container').style.display = 'block';
             
-            // AI 사용자 상태 표시
-            const userStatus = document.getElementById('user-status');
-            const statusText = document.getElementById('status-text');
+            // AI 사용자는 메시지 입력 불가
             if (isAI) {
-                userStatus.classList.add('ai');
-                statusText.textContent = 'AI 사용자';
-                // AI 사용자는 메시지 입력 불가
                 document.getElementById('message-input').classList.add('disabled');
                 document.getElementById('message-input').disabled = true;
                 document.getElementById('send-button').disabled = true;
-            } else {
-                userStatus.classList.remove('ai');
-                statusText.textContent = '일반 사용자';
             }
             
             socket.emit('join', username);
@@ -283,7 +253,7 @@
             const messageElement = document.createElement('div');
             
             if (data.type === 'user') {
-                messageElement.className = `message ${isAIUser.get(socket.id) ? 'ai-message' : 'user-message'}`;
+                messageElement.className = 'message user-message';
                 messageElement.textContent = `${data.username}: ${data.message}`;
             } else {
                 messageElement.className = 'message system-message';
