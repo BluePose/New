@@ -103,6 +103,52 @@
             background: #f8d7da;
             color: #721c24;
         }
+        .ai-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .ai-toggle label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+        .ai-toggle input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            width: 300px;
+        }
+        .modal-content input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .modal-content button {
+            width: 100%;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -113,6 +159,12 @@
                 <input type="text" id="username-input" placeholder="대화명을 입력하세요" required>
                 <button type="submit">입장하기</button>
             </form>
+            <div class="ai-toggle">
+                <label>
+                    <input type="checkbox" id="ai-toggle">
+                    AI 사용자로 참여
+                </label>
+            </div>
         </div>
         
         <div id="chat-container">
@@ -126,12 +178,20 @@
         </div>
     </div>
 
+    <!-- AI 인증 모달 -->
+    <div id="ai-modal" class="modal">
+        <div class="modal-content">
+            <h3>AI 사용자 인증</h3>
+            <p>AI 사용자로 참여하기 위한 비밀번호를 입력하세요.</p>
+            <input type="password" id="ai-password" placeholder="비밀번호">
+            <button id="verify-ai">확인</button>
+            <button id="cancel-ai" style="background: #6c757d;">취소</button>
+        </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        // 서버 URL 설정 (배포된 서버 URL로 변경 필요)
-        const serverUrl = window.location.origin;
-        
-        const socket = io(serverUrl, {
+        const socket = io({
             transports: ['websocket'],
             upgrade: false,
             reconnection: true,
@@ -148,6 +208,46 @@
         const messagesDiv = document.getElementById('messages');
         const userCountSpan = document.getElementById('user-count');
         const connectionStatus = document.getElementById('connection-status');
+        const aiToggle = document.getElementById('ai-toggle');
+        const aiModal = document.getElementById('ai-modal');
+        const aiPassword = document.getElementById('ai-password');
+        const verifyAiButton = document.getElementById('verify-ai');
+        const cancelAiButton = document.getElementById('cancel-ai');
+
+        let isAIUser = false;
+
+        // AI 토글 처리
+        aiToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                aiModal.style.display = 'block';
+            } else {
+                isAIUser = false;
+            }
+        });
+
+        // AI 인증 처리
+        verifyAiButton.addEventListener('click', () => {
+            const password = aiPassword.value;
+            socket.emit('verify_ai', password);
+            aiPassword.value = '';
+        });
+
+        // AI 인증 취소
+        cancelAiButton.addEventListener('click', () => {
+            aiModal.style.display = 'none';
+            aiToggle.checked = false;
+        });
+
+        // AI 인증 결과 처리
+        socket.on('ai_verified', (success) => {
+            aiModal.style.display = 'none';
+            if (!success) {
+                aiToggle.checked = false;
+                alert('비밀번호가 올바르지 않습니다.');
+            } else {
+                isAIUser = true;
+            }
+        });
 
         // 연결 상태 표시
         function updateConnectionStatus(connected) {

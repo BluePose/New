@@ -11,6 +11,13 @@ const io = require('socket.io')(http, {
     pingInterval: 25000
 });
 
+// OpenAI 설정
+const { Configuration, OpenAIApi } = require('openai');
+const configuration = new Configuration({
+    apiKey: process.env.OPENAI_API_KEY
+});
+const openai = new OpenAIApi(configuration);
+
 // 정적 파일 제공 설정 최적화
 app.use(express.static('public', {
     maxAge: '1h',
@@ -26,7 +33,21 @@ app.get('/health', (req, res) => {
     res.status(200).send('OK');
 });
 
+// AI 사용자 인증
+const AI_PASSWORD = '5001';
+const isAIUser = new Map();
+
 io.on('connection', (socket) => {
+    // AI 사용자 인증 처리
+    socket.on('verify_ai', (password) => {
+        if (password === AI_PASSWORD) {
+            isAIUser.set(socket.id, true);
+            socket.emit('ai_verified', true);
+        } else {
+            socket.emit('ai_verified', false);
+        }
+    });
+
     // 사용자 참여 처리
     socket.on('join', (username) => {
         users.set(socket.id, username);
@@ -44,14 +65,46 @@ io.on('connection', (socket) => {
     });
 
     // 메시지 수신 시
-    socket.on('chat message', (msg) => {
+    socket.on('chat message', async (msg) => {
         const username = users.get(socket.id);
         if (username) {
+            // 일반 메시지 전송
             io.emit('chat message', {
                 type: 'user',
                 username: username,
                 message: msg
             });
+
+            // AI 사용자인 경우 응답 생성
+            if (isAIUser.get(socket.id)) {
+                try {
+                    const completion = await openai.createChatCompletion({
+                        model: "gpt-3.5-turbo",
+                        messages: [
+                            {
+                                role: "system",
+                                content: "당신은 채팅방에서 자연스럽게 대화하는 사용자입니다. 짧고 자연스러운 대화를 나누세요."
+                            },
+                            {
+                                role: "user",
+                                content: msg
+                            }
+                        ],
+                        max_tokens: 100
+                    });
+
+                    const aiResponse = completion.data.choices[0].message.content;
+                    
+                    // AI 응답 전송
+                    io.emit('chat message', {
+                        type: 'user',
+                        username: username,
+                        message: aiResponse
+                    });
+                } catch (error) {
+                    console.error('OpenAI API 오류:', error);
+                }
+            }
         }
     });
 
@@ -60,6 +113,7 @@ io.on('connection', (socket) => {
         const username = users.get(socket.id);
         if (username) {
             users.delete(socket.id);
+            isAIUser.delete(socket.id);
             connectedUsers--;
             console.log(`${username}님이 퇴장하셨습니다. 현재 접속자 수: ${connectedUsers}`);
             
