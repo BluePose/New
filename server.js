@@ -110,13 +110,17 @@ io.on('connection', (socket) => {
                         
                         // AI의 이름 가져오기
                         const aiUsername = users.get(socketId);
+                        
+                        if (!aiUsername) {
+                            console.error('AI 사용자 이름을 찾을 수 없음:', socketId);
+                            continue;
+                        }
 
-                        const completion = await openai.createChatCompletion({
-                            model: "gpt-3.5-turbo",
-                            messages: [
-                                {
-                                    role: "system",
-                                    content: `당신은 채팅방에서 자연스럽게 대화하는 사용자입니다. 당신의 이름은 ${aiUsername}입니다.
+                        // 대화 기록을 OpenAI API 형식으로 변환
+                        const messages = [
+                            {
+                                role: "system",
+                                content: `당신은 채팅방에서 자연스럽게 대화하는 사용자입니다. 당신의 이름은 ${aiUsername}입니다.
 현재 채팅방의 사용자들: ${userList}
 
 다음 규칙을 따라 대화하세요:
@@ -128,13 +132,29 @@ io.on('connection', (socket) => {
 6. 채팅방의 분위기에 맞춰 대화하세요.
 7. 당신은 진짜 사람처럼 행동해야 합니다.
 8. 다른 사용자의 메시지에 자연스럽게 반응하세요.`
-                                },
-                                ...conversationHistory.map(msg => ({
-                                    role: msg.role,
-                                    content: msg.content,
-                                    name: msg.username
-                                }))
-                            ],
+                            }
+                        ];
+
+                        // 최근 10개의 메시지만 포함
+                        const recentMessages = conversationHistory.slice(-10);
+                        recentMessages.forEach(msg => {
+                            messages.push({
+                                role: msg.role,
+                                content: msg.content,
+                                name: msg.username
+                            });
+                        });
+
+                        console.log('OpenAI API 요청 데이터:', {
+                            model: "gpt-3.5-turbo",
+                            messages: messages,
+                            max_tokens: 150,
+                            temperature: 0.8
+                        });
+
+                        const completion = await openai.createChatCompletion({
+                            model: "gpt-3.5-turbo",
+                            messages: messages,
                             max_tokens: 150,
                             temperature: 0.8,
                             presence_penalty: 0.6,
@@ -144,6 +164,10 @@ io.on('connection', (socket) => {
                         const aiResponse = completion.data.choices[0].message.content;
                         console.log('AI 응답:', aiResponse);
                         
+                        if (!aiResponse) {
+                            throw new Error('AI 응답이 비어있습니다.');
+                        }
+
                         // AI 응답을 대화 기록에 추가
                         conversationHistory.push({
                             role: 'assistant',
@@ -159,10 +183,12 @@ io.on('connection', (socket) => {
                         });
                     } catch (error) {
                         console.error('OpenAI API 오류:', error);
+                        console.error('오류 상세:', error.response?.data || error.message);
+                        
                         // 에러 발생 시 사용자에게 알림
                         io.emit('chat message', {
                             type: 'system',
-                            message: 'AI 응답 생성 중 오류가 발생했습니다.'
+                            message: 'AI 응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
                         });
                     }
                 }
