@@ -199,19 +199,32 @@ function getAIResponseProbability(userCount) {
 // AI가 이미 반응한 메시지 추적용 Set
 const respondedMessages = new Set();
 
-// 릴레이 방식 AI 반응 함수
-async function relayAIResponse(message, senderName, excludeAI = null) {
-    const aiUsers = Array.from(users.values()).filter(user => user.isAI && user.username !== senderName && user.username !== excludeAI);
+// 릴레이 방식 AI 반응 함수 (모든 AI가 순환적으로 참여)
+async function relayAIResponse(message, senderName, excludeAI = null, relayOrder = []) {
+    // 참여 중인 AI 목록
+    let aiUsers = Array.from(users.values()).filter(user => user.isAI);
     if (aiUsers.length === 0) return;
-    const nextAI = aiUsers[0];
-    // 랜덤 딜레이(1~5초)
-    const delay = 1000 + Math.floor(Math.random() * 4000);
+    // 릴레이 순서가 없으면 랜덤하게 섞어서 시작
+    if (!relayOrder.length) {
+        aiUsers = aiUsers.filter(user => user.username !== senderName && user.username !== excludeAI);
+        relayOrder = aiUsers.map(user => user.username);
+        // 랜덤 셔플
+        for (let i = relayOrder.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [relayOrder[i], relayOrder[j]] = [relayOrder[j], relayOrder[i]];
+        }
+    }
+    if (relayOrder.length === 0) return;
+    const nextAIName = relayOrder[0];
+    const nextAI = aiUsers.find(user => user.username === nextAIName);
+    if (!nextAI) return;
+    // 딜레이(2~8초)
+    const delay = 2000 + Math.floor(Math.random() * 6000);
     const triggerMessage = conversationHistory[conversationHistory.length - 1];
     setTimeout(async () => {
         // 딜레이 후, 최신 메시지가 여전히 트리거 메시지와 동일한지 확인
         const latestMsg = conversationHistory[conversationHistory.length - 1];
         if (!latestMsg || latestMsg.content !== triggerMessage.content || latestMsg.username !== triggerMessage.username) {
-            // 최신 메시지가 바뀌었으면 반응하지 않음
             return;
         }
         // 이미 반응한 메시지인지 체크
@@ -231,11 +244,12 @@ async function relayAIResponse(message, senderName, excludeAI = null) {
             if (conversationHistory.length > MAX_HISTORY_LENGTH) {
                 conversationHistory = conversationHistory.slice(-MAX_HISTORY_LENGTH);
             }
-            // 다음 AI에게 릴레이(자기 자신 제외)
-            // 릴레이 응답이 최신 메시지라면 다시 릴레이를 시작
+            // 다음 AI에게 릴레이(순환)
             const newestMsg = conversationHistory[conversationHistory.length - 1];
             if (newestMsg && newestMsg.content === aiResponse && newestMsg.username === nextAI.username) {
-                relayAIResponse(aiResponse, nextAI.username, nextAI.username);
+                // 다음 순서로 넘김 (순환)
+                const nextOrder = relayOrder.slice(1).concat([nextAIName]);
+                relayAIResponse(aiResponse, nextAI.username, nextAI.username, nextOrder);
             }
         } catch (error) {
             console.error('릴레이 AI 응답 생성 중 오류:', error);
