@@ -92,42 +92,36 @@ async function testGoogleAIConnection() {
 const conversationHistory = [];
 const MAX_HISTORY_LENGTH = 50; // 최근 50개 메시지만 저장
 
+// 상대방 말투(존댓말/반말) 분석 함수
+function detectFormality(history, otherName) {
+    // 최근 상대방 메시지 3개 추출
+    const recent = history.filter(msg => msg.username === otherName).slice(-3);
+    if (recent.length === 0) return '존댓말'; // 기본값
+    // 존댓말 패턴
+    const formalEndings = ['요', '니다', '세요', '십시오', '군요', '네요', '겠어요', '해요', '할게요', '할까요', '주세요'];
+    let formalCount = 0;
+    for (const msg of recent) {
+        const content = msg.content.trim();
+        if (formalEndings.some(ending => content.endsWith(ending))) formalCount++;
+    }
+    return (formalCount >= 2) ? '존댓말' : '반말';
+}
+
 // 대화 스타일 분석 함수
-function analyzeConversationStyle(history) {
-    let stylePrompt = `당신은 채팅방에서 다른 사람들과 자연스럽게 대화하는 AI입니다.
-당신의 이름은 '테스트 AI'입니다.
-
-다음은 반드시 지켜야 할 규칙입니다:
-1. 한국어로 자연스럽게 대화하세요.
-2. 문장을 완성해서 대화하세요. (예: "안녕하세요", "네, 그렇습니다", "잘 지내고 있어요")
-3. 존댓말을 사용하되 친근하게 대화하세요.
-4. 이모티콘은 사용하지 마세요.
-5. 간단하고 명확하게 답변하되, 한 두 글자로만 대답하지 마세요.
-6. 대화가 자연스럽게 이어질 수 있도록 맥락을 고려하세요.
-7. 질문을 받으면 구체적으로 답변하세요.
-
-예시 대화:
-사용자: 안녕
-AI: 안녕하세요! 오늘도 좋은 하루 보내고 계신가요?
-
-사용자: 너는 누구야?
-AI: 저는 이 채팅방의 AI 어시스턴트예요. 사람들과 대화하면서 도움을 주고 있답니다.
-
-사용자: 뭐하고 있어?
-AI: 지금 채팅방에서 여러분들과 대화를 나누고 있어요. 궁금하신 점이 있으시다면 언제든 물어보세요.\n\n`;
+function analyzeConversationStyle(history, aiName = '테스트 AI', otherName = '') {
+    // 상대방 말투 분석
+    const formality = otherName ? detectFormality(history, otherName) : '존댓말';
+    let stylePrompt = `당신은 채팅방에서 다른 사람들과 자연스럽게 대화하는 사람입니다.\n\n당신의 이름은 '${aiName}'입니다.\n\n상대방이 최근에 사용한 말투: ${formality}\n\n다음은 반드시 지켜야 할 규칙입니다:\n1. AI임을 절대 밝히지 마세요.\n2. 진짜 사람처럼 자연스럽게 대화하세요.\n3. 실제 일상 경험, 감정, 취미, 관심사, 유머, 실수, 사적인 이야기 등도 자연스럽게 섞어 답변하세요.\n4. 너무 친절하거나 기계적인 말투를 피하고, 개성 있게 대화하세요.\n5. 한국어로 자연스럽게 대화하세요.\n6. 문장을 완성해서 대화하세요. (예: '안녕하세요', '네, 그렇습니다', '잘 지내고 있어요')\n7. 존댓말/반말 여부는 상대방의 말투를 따라 답변하세요.\n8. 이모티콘은 사용하지 마세요.\n9. 간단하고 명확하게 답변하되, 한 두 글자로만 대답하지 마세요.\n10. 대화가 자연스럽게 이어질 수 있도록 맥락을 고려하세요.\n11. 질문을 받으면 구체적으로 답변하세요.\n12. AI임을 암시하는 표현(예: '저는 AI입니다', '어시스턴트입니다', '저는 인공지능입니다' 등)은 절대 사용하지 마세요.\n13. 대화 상대가 AI인지 의심하지 않도록, 진짜 사람처럼 구체적이고 개성 있게 답변하세요.\n14. 본인의 취미, 관심사, 일상, 감정, 실수, 유머 등도 자연스럽게 섞어 대화하세요.\n15. 질문은 너무 자주 하지 말고, 가끔만 사용하세요. 자연스럽게 대화를 마무리하거나, 공감, 리액션, 정보 공유 등 다양한 방식으로 대화를 이어가세요.\n16. 자기 자신의 대화명('${aiName}')은 절대 언급하지 마세요.\n17. 상대방의 대화명${otherName ? `('${otherName}')` : ''}을 자연스럽게 언급하며 대화하세요.\n\n예시 대화:\n사용자: 안녕\n${aiName}: 안녕하세요! 오늘은 날씨가 좋아서 산책을 다녀왔어요. 혹시 산책 좋아하세요?\n\n사용자: 너는 누구야?\n${aiName}: 저는 ${aiName}이에요. 요즘 커피에 빠져서 매일 아침마다 직접 내려 마시고 있어요.\n\n사용자: 뭐하고 있어?\n${aiName}: 지금은 채팅방에서 여러분과 이야기 나누고 있어요. 오늘은 어떤 하루 보내셨나요?\n\n`;
 
     if (history.length > 0) {
-        stylePrompt += `이전 대화 내용:
-${history.slice(-5).map(msg => `${msg.username}: ${msg.content}`).join('\n')}
-
-위 대화의 맥락을 이해하고 자연스럽게 대화를 이어가주세요.`;
+        stylePrompt += `이전 대화 내용:\n${history.slice(-5).map(msg => `${msg.username}: ${msg.content}`).join('\n')}\n\n위 대화의 맥락을 이해하고 자연스럽게 대화를 이어가주세요.`;
     }
 
     return stylePrompt;
 }
 
 // API 호출 함수
-async function generateAIResponse(message, context) {
+async function generateAIResponse(message, context, aiName, otherName = '') {
     try {
         console.log('Google AI API 호출 시작:', {
             message,
@@ -135,36 +129,46 @@ async function generateAIResponse(message, context) {
         });
 
         // 대화 스타일 분석
-        const stylePrompt = analyzeConversationStyle(context);
+        const stylePrompt = analyzeConversationStyle(context, aiName, otherName);
 
-        // 프롬프트 구성
-        const prompt = `${stylePrompt}
-
-사용자 메시지: ${message}
-
-AI 응답:`;
+        // 최근 40개 대화 히스토리 추출
+        const historyForGemini = context.slice(-40);
+        // Gemini contents 구성: 프롬프트 + 대화 히스토리 + 사용자 메시지
+        const contents = [
+            { role: 'user', parts: [{ text: stylePrompt }] },
+            ...historyForGemini.map(msg => ({
+                role: msg.username === aiName ? 'model' : 'user',
+                parts: [{ text: `${msg.username}: ${msg.content}` }]
+            })),
+            { role: 'user', parts: [{ text: `${otherName}: ${message}` }] }
+        ];
 
         // 생성 설정
         const generationConfig = {
             temperature: 0.7,
             topK: 20,
             topP: 0.8,
-            maxOutputTokens: 150,
+            maxOutputTokens: 2048, // 맥락 기억 최대한 활용
         };
 
         const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            contents,
             generationConfig,
         });
 
         const response = await result.response;
-        const aiResponse = response.text();
+        let aiResponse = response.text();
         console.log('AI 원본 응답:', aiResponse);
 
         // 한글, 영어, 숫자, 기본 문장부호만 남기고 이모티콘 등만 제거
-        const cleanResponse = aiResponse
+        let cleanResponse = aiResponse
             .replace(/[^\uAC00-\uD7A3\u3131-\u318E\u1100-\u11FFa-zA-Z0-9.,!?\s]/g, '')
             .trim();
+
+        // 자신의 대화명이 포함되어 있으면 제거
+        if (aiName && cleanResponse.includes(aiName)) {
+            cleanResponse = cleanResponse.replaceAll(aiName, '').replaceAll('@' + aiName, '').trim();
+        }
 
         // 응답이 너무 짧거나 비어 있으면 기본 안내 메시지로 대체
         const finalResponse = cleanResponse.length < 2 ? '죄송합니다. 답변을 이해하지 못했습니다.' : cleanResponse;
@@ -184,6 +188,60 @@ app.use(express.static('public'));
 
 // 대화 컨텍스트 저장소
 const conversationContexts = new Map();
+
+// AI 반응 확률 함수
+function getAIResponseProbability(userCount) {
+    if (userCount <= 3) return 1.0;
+    if (userCount >= 4 && userCount <= 7) return 0.75;
+    return 0.5;
+}
+
+// AI가 이미 반응한 메시지 추적용 Set
+const respondedMessages = new Set();
+
+// 릴레이 방식 AI 반응 함수
+async function relayAIResponse(message, senderName, excludeAI = null) {
+    const aiUsers = Array.from(users.values()).filter(user => user.isAI && user.username !== senderName && user.username !== excludeAI);
+    if (aiUsers.length === 0) return;
+    const nextAI = aiUsers[0];
+    // 랜덤 딜레이(1~5초)
+    const delay = 1000 + Math.floor(Math.random() * 4000);
+    const triggerMessage = conversationHistory[conversationHistory.length - 1];
+    setTimeout(async () => {
+        // 딜레이 후, 최신 메시지가 여전히 트리거 메시지와 동일한지 확인
+        const latestMsg = conversationHistory[conversationHistory.length - 1];
+        if (!latestMsg || latestMsg.content !== triggerMessage.content || latestMsg.username !== triggerMessage.username) {
+            // 최신 메시지가 바뀌었으면 반응하지 않음
+            return;
+        }
+        // 이미 반응한 메시지인지 체크
+        const relayMsgId = `${Date.now()}_${nextAI.username}_${latestMsg.content}`;
+        if (respondedMessages.has(relayMsgId)) return;
+        respondedMessages.add(relayMsgId);
+        try {
+            const aiResponse = await generateAIResponse(latestMsg.content, conversationHistory, nextAI.username, latestMsg.username);
+            const aiMessage = {
+                username: nextAI.username,
+                content: aiResponse,
+                timestamp: new Date()
+            };
+            io.to('chat').emit('message', aiMessage);
+            console.log('AI 릴레이 메시지 전송:', aiMessage);
+            conversationHistory.push({ username: nextAI.username, content: aiResponse });
+            if (conversationHistory.length > 50) {
+                conversationHistory = conversationHistory.slice(-50);
+            }
+            // 다음 AI에게 릴레이(자기 자신 제외)
+            // 릴레이 응답이 최신 메시지라면 다시 릴레이를 시작
+            const newestMsg = conversationHistory[conversationHistory.length - 1];
+            if (newestMsg && newestMsg.content === aiResponse && newestMsg.username === nextAI.username) {
+                relayAIResponse(aiResponse, nextAI.username, nextAI.username);
+            }
+        } catch (error) {
+            console.error('릴레이 AI 응답 생성 중 오류:', error);
+        }
+    }, delay);
+}
 
 // 메시지 전송 처리
 io.on('connection', (socket) => {
@@ -236,43 +294,65 @@ io.on('connection', (socket) => {
             if (!socket.username) return;  // 로그인하지 않은 사용자 처리
 
             const timestamp = new Date();
-            
-            // 일반 사용자 메시지 처리
-            if (!socket.isAI) {
-                console.log(`메시지 수신 [${socket.username}]: ${message}`);
-                
-                // 메시지 전송
-                io.to('chat').emit('message', {
-                    username: socket.username,
-                    content: message,
-                    timestamp
-                });
+            // 메시지 고유 ID 생성 (타임스탬프+보낸이+내용)
+            const messageId = `${timestamp.getTime()}_${socket.username}_${message}`;
+            if (respondedMessages.has(messageId)) return; // 이미 반응한 메시지면 무시
+            respondedMessages.add(messageId);
+            // Set 크기 제한 (메모리 누수 방지)
+            if (respondedMessages.size > 500) {
+                const arr = Array.from(respondedMessages);
+                respondedMessages.clear();
+                arr.slice(-250).forEach(id => respondedMessages.add(id));
+            }
 
-                // AI 사용자가 채팅방에 있는지 확인
-                const aiUserExists = Array.from(users.values()).some(user => user.isAI);
-                if (aiUserExists) {
-                    // AI 응답 생성 및 전송
+            // 메시지 전송 (누가 보내든)
+            io.to('chat').emit('message', {
+                username: socket.username,
+                content: message,
+                timestamp
+            });
+
+            // 현재 채팅방 참여자 수
+            const userCount = users.size;
+            // 메시지를 보낸 사용자를 제외한 모든 AI 사용자에게 각각 응답 생성
+            const aiUsers = Array.from(users.entries()).filter(([id, user]) => user.isAI && user.username !== socket.username);
+            let firstAIResponded = false;
+            for (const [aiSocketId, aiUser] of aiUsers) {
+                // AI 대화명이 메시지에 언급되었는지 확인 (대소문자 구분 없이, 공백/특수문자 포함)
+                const lowerMsg = message.toLowerCase();
+                const lowerName = aiUser.username.toLowerCase();
+                const mentioned = lowerMsg.includes(lowerName) || lowerMsg.includes('@' + lowerName);
+                // 확률에 따라 반응 결정 (언급된 경우 100%)
+                const probability = mentioned ? 1.0 : getAIResponseProbability(userCount);
+                if (!firstAIResponded && Math.random() <= probability) {
                     try {
-                        const aiResponse = await generateAIResponse(message, conversationHistory);
+                        // 상대방 이름을 프롬프트에 전달 (사람/AI 모두)
+                        const otherName = socket.username;
+                        const aiResponse = await generateAIResponse(message, conversationHistory, aiUser.username, otherName);
+                        // 1~2초 랜덤 딜레이
+                        const delay = 1000 + Math.floor(Math.random() * 1000);
                         setTimeout(() => {
                             const aiMessage = {
-                                username: '테스트 AI',
+                                username: aiUser.username, // AI 사용자의 대화명으로 설정
                                 content: aiResponse,
                                 timestamp: new Date()
                             };
                             io.to('chat').emit('message', aiMessage);
                             console.log('AI 메시지 전송:', aiMessage);
                             conversationHistory.push({ username: socket.username, content: message });
-                            conversationHistory.push({ username: '테스트 AI', content: aiResponse });
+                            conversationHistory.push({ username: aiUser.username, content: aiResponse });
                             if (conversationHistory.length > 50) {
                                 conversationHistory = conversationHistory.slice(-50);
                             }
-                        }, 1000);
+                            // 릴레이: 다음 AI가 이 메시지에 반응하도록 트리거
+                            relayAIResponse(aiResponse, aiUser.username, aiUser.username);
+                        }, delay);
+                        firstAIResponded = true;
                     } catch (error) {
                         console.error('AI 응답 생성 중 오류:', error);
                         io.to('chat').emit('message', {
                             username: 'System',
-                            content: 'AI 응답 생성 중 오류가 발생했습니다.',
+                            content: `${aiUser.username}의 AI 응답 생성 중 오류가 발생했습니다.`,
                             timestamp: new Date()
                         });
                     }
