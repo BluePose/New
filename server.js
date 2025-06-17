@@ -4,18 +4,17 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
-const { HfInference } = require('@huggingface/inference');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Hugging Face API 설정
-const HF_API_KEY = process.env.HF_API_KEY;
-if (!HF_API_KEY) {
-    console.error('Hugging Face API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.');
+// Google AI API 설정
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+if (!GOOGLE_API_KEY) {
+    console.error('Google API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.');
     process.exit(1);
 }
 
-const hf = new HfInference(HF_API_KEY);
-// 더 작고 안정적인 모델로 변경
-const MODEL_ID = "facebook/opt-125m";
+const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
 // 포트 설정
 const PORT = process.env.PORT || 3000;
@@ -23,27 +22,21 @@ const PORT = process.env.PORT || 3000;
 // 사용자 관리
 const users = new Map(); // socket.id -> username 매핑
 
-// Hugging Face API 연결 테스트
-async function testHuggingFaceConnection() {
+// Google AI API 연결 테스트
+async function testGoogleAIConnection() {
     try {
-        console.log('Hugging Face API 연결 테스트 시작...');
-        console.log('API 키:', HF_API_KEY ? '설정됨' : '설정되지 않음');
+        console.log('Google AI API 연결 테스트 시작...');
+        console.log('API 키:', GOOGLE_API_KEY ? '설정됨' : '설정되지 않음');
 
-        const response = await hf.textGeneration({
-            model: MODEL_ID,
-            inputs: "Hello, how are you?",
-            parameters: {
-                max_new_tokens: 50,
-                temperature: 0.7,
-                return_full_text: false
-            }
-        });
+        const result = await model.generateContent('Hello, how are you?');
+        const response = await result.response;
+        const text = response.text();
 
-        console.log('Hugging Face API 테스트 응답:', response);
-        console.log('Hugging Face API 연결 테스트 성공!');
+        console.log('Google AI API 테스트 응답:', text);
+        console.log('Google AI API 연결 테스트 성공!');
         return true;
     } catch (error) {
-        console.error('Hugging Face API 연결 테스트 실패:', {
+        console.error('Google AI API 연결 테스트 실패:', {
             message: error.message,
             status: error.response?.status,
             data: error.response?.data
@@ -55,39 +48,27 @@ async function testHuggingFaceConnection() {
 // API 호출 함수
 async function generateAIResponse(message, context) {
     try {
-        console.log('Hugging Face API 호출 시작:', {
+        console.log('Google AI API 호출 시작:', {
             message,
             contextLength: context.length
         });
 
         // 이전 대화 내용을 포함하여 프롬프트 생성
-        const pastMessages = context
-            .slice(-6) // 최근 6개의 메시지만 포함
-            .map(msg => `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`)
-            .join('\n');
-
-        const fullPrompt = pastMessages ? 
-            `${pastMessages}\nHuman: ${message}\nAssistant:` : 
-            `Human: ${message}\nAssistant:`;
-
-        const response = await hf.textGeneration({
-            model: MODEL_ID,
-            inputs: fullPrompt,
-            parameters: {
-                max_new_tokens: 150,
-                temperature: 0.7,
-                top_p: 0.95,
-                top_k: 50,
-                repetition_penalty: 1.15,
-                return_full_text: false
-            }
+        const chat = model.startChat({
+            history: context.map(msg => ({
+                role: msg.role === 'user' ? 'user' : 'model',
+                parts: msg.content
+            }))
         });
 
-        const aiResponse = response.generated_text.trim();
-        console.log('Hugging Face API 응답 성공:', aiResponse);
+        const result = await chat.sendMessage(message);
+        const response = await result.response;
+        const aiResponse = response.text();
+
+        console.log('Google AI API 응답 성공:', aiResponse);
         return aiResponse;
     } catch (error) {
-        console.error('Hugging Face API 오류:', {
+        console.error('Google AI API 오류:', {
             message: error.message,
             status: error.response?.status,
             data: error.response?.data
@@ -173,7 +154,7 @@ io.on('connection', (socket) => {
             // 컨텍스트 업데이트
             context.push(
                 { role: 'user', content: data.message },
-                { role: 'assistant', content: aiResponse }
+                { role: 'model', content: aiResponse }
             );
             // 컨텍스트 크기 제한 (최근 10개 메시지만 유지)
             if (context.length > 20) {
@@ -217,14 +198,14 @@ io.on('connection', (socket) => {
 });
 
 // 서버 시작 전 API 연결 테스트
-testHuggingFaceConnection().then(success => {
+testGoogleAIConnection().then(success => {
     if (!success) {
-        console.error('Hugging Face API 연결 테스트 실패. 서버를 종료합니다.');
+        console.error('Google AI API 연결 테스트 실패. 서버를 종료합니다.');
         process.exit(1);
     }
 
     http.listen(PORT, () => {
         console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
-        console.log('Hugging Face API 키 상태:', HF_API_KEY ? '설정됨' : '설정되지 않음');
+        console.log('Google AI API 키 상태:', GOOGLE_API_KEY ? '설정됨' : '설정되지 않음');
     });
 }); 
