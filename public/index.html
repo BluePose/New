@@ -29,207 +29,101 @@
         }
 
         .container {
-            max-width: 1000px;
-            margin: 2rem auto;
-            padding: 0 1rem;
-        }
-
-        .chat-wrapper {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-
-        #login-container {
-            padding: 2rem;
-            text-align: center;
-        }
-
-        .login-form {
-            max-width: 400px;
+            max-width: 800px;
             margin: 0 auto;
-            padding: 2rem;
-            background: white;
+            background-color: white;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
         }
 
-        .login-form h2 {
-            margin-bottom: 1.5rem;
-            color: var(--primary-color);
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        input[type="text"],
-        input[type="password"] {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.3s ease;
-        }
-
-        input[type="text"]:focus,
-        input[type="password"]:focus {
-            border-color: var(--primary-color);
-            outline: none;
-        }
-
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        button:hover {
-            background-color: #357abd;
+        #login-form {
+            text-align: center;
+            margin-bottom: 20px;
         }
 
         #chat-container {
             display: none;
-            height: 80vh;
-            flex-direction: column;
-        }
-
-        #chat-container.show {
-            display: flex;
-        }
-
-        .chat-header {
-            padding: 1rem;
-            background-color: var(--primary-color);
-            color: white;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
 
         #messages {
-            flex: 1;
+            height: 400px;
             overflow-y: auto;
-            padding: 1rem;
-            background-color: white;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
         }
 
         .message {
-            margin-bottom: 1rem;
-            padding: 0.8rem;
-            border-radius: 10px;
-            max-width: 80%;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 5px;
+            word-wrap: break-word;
         }
 
         .user-message {
-            background-color: var(--primary-color);
-            color: white;
-            margin-left: auto;
+            background-color: #e3f2fd;
+            margin-left: 20%;
         }
 
         .ai-message {
-            background-color: #f0f2f5;
-            margin-right: auto;
+            background-color: #f5f5f5;
+            margin-right: 20%;
         }
 
         .system-message {
-            background-color: #f8f9fa;
-            color: #666;
-            font-style: italic;
+            background-color: #fff3e0;
             text-align: center;
-            margin: 1rem auto;
-            max-width: 90%;
+            font-style: italic;
         }
 
-        .input-container {
-            padding: 1rem;
-            background-color: white;
-            border-top: 1px solid var(--border-color);
+        #message-form {
             display: flex;
-            gap: 0.5rem;
-            align-items: center;
+            gap: 10px;
         }
 
         #message-input {
-            flex: 1;
-            padding: 15px;
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 1rem;
-            min-height: 50px;
-            resize: none;
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
         }
 
-        #send-button {
-            width: auto;
-            padding: 15px 25px;
-            background-color: var(--primary-color);
+        button {
+            padding: 10px 20px;
+            background-color: #2196f3;
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 500;
+            border-radius: 5px;
             cursor: pointer;
-            transition: background-color 0.3s ease;
-            white-space: nowrap;
+            font-size: 16px;
         }
 
-        #send-button:hover {
-            background-color: #357abd;
+        button:hover {
+            background-color: #1976d2;
         }
 
-        #send-button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-
-        .ai-option {
-            background-color: #f8f9fa;
-            padding: 1rem;
-            border-radius: 8px;
-            margin: 1rem 0;
-        }
-
-        .ai-option label {
+        .user-info {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 0.5rem;
-            cursor: pointer;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
         }
 
-        .ai-password-container {
-            display: none;
-            margin-top: 1rem;
-        }
-
-        .ai-password-container.show {
-            display: block;
-        }
-
-        .typing-indicator {
-            display: none;
-            padding: 0.5rem;
+        #user-list {
+            font-size: 14px;
             color: #666;
-            font-style: italic;
         }
 
-        .typing-indicator.show {
-            display: block;
+        .error-message {
+            color: #d32f2f;
+            margin-top: 10px;
+            text-align: center;
         }
 
         @media (max-width: 768px) {
@@ -255,175 +149,102 @@
 </head>
 <body>
     <div class="container">
-        <div class="chat-wrapper">
-            <div id="login-container">
-                <div class="login-form">
-                    <h2>채팅방 입장</h2>
-                    <div class="form-group">
-                        <input type="text" id="username-input" placeholder="사용자 이름을 입력하세요">
-                    </div>
-                    <div class="ai-option">
-                        <label>
-                            <input type="checkbox" id="ai-toggle">
-                            AI 사용자로 참여
-                        </label>
-                    </div>
-                    <div id="ai-password-container" class="ai-password-container">
-                        <input type="password" id="ai-password" placeholder="AI 비밀번호를 입력하세요">
-                    </div>
-                    <button onclick="joinChat()">입장하기</button>
-                </div>
+        <div id="login-form">
+            <h2>채팅방 입장</h2>
+            <input type="text" id="username-input" placeholder="사용자 이름" required>
+            <input type="password" id="password-input" placeholder="AI 비밀번호 (선택사항)">
+            <button onclick="joinChat()">입장하기</button>
+            <div id="error-message" class="error-message"></div>
+        </div>
+        <div id="chat-container">
+            <div class="user-info">
+                <span id="current-user"></span>
+                <span id="user-list"></span>
             </div>
-            <div id="chat-container">
-                <div class="chat-header">
-                    <h3>실시간 채팅</h3>
-                    <div id="user-count">접속자 수: 0</div>
-                </div>
-                <div id="messages"></div>
-                <div class="typing-indicator" id="typing-indicator">AI가 입력 중...</div>
-                <div class="input-container">
-                    <input type="text" id="message-input" placeholder="메시지를 입력하세요">
-                    <button onclick="sendMessage()" id="send-button">전송</button>
-                </div>
-            </div>
+            <div id="messages"></div>
+            <form id="message-form">
+                <input type="text" id="message-input" placeholder="메시지를 입력하세요..." required>
+                <button type="submit">전송</button>
+            </form>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io({
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000
-        });
-
-        let username = '';
-        let isAI = false;
-
-        // AI 토글 처리
-        document.getElementById('ai-toggle').addEventListener('change', function(e) {
-            const passwordContainer = document.getElementById('ai-password-container');
-            if (e.target.checked) {
-                passwordContainer.classList.add('show');
-            } else {
-                passwordContainer.classList.remove('show');
-                document.getElementById('ai-password').value = '';
-            }
-        });
+        const socket = io();
+        let currentUsername = '';
 
         function joinChat() {
-            username = document.getElementById('username-input').value.trim();
-            const isAIToggle = document.getElementById('ai-toggle').checked;
-            
+            const usernameInput = document.getElementById('username-input');
+            const passwordInput = document.getElementById('password-input');
+            const errorMessage = document.getElementById('error-message');
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+
             if (!username) {
-                alert('사용자 이름을 입력해주세요.');
+                errorMessage.textContent = '사용자 이름을 입력해주세요.';
                 return;
             }
 
-            if (isAIToggle) {
-                const password = document.getElementById('ai-password').value;
-                if (!password) {
-                    alert('AI 비밀번호를 입력해주세요.');
-                    return;
-                }
-                // AI 인증 시도
-                socket.emit('verify_ai', password);
-            } else {
-                // 일반 사용자로 입장
-                enterChat(false);
-            }
+            errorMessage.textContent = '';
+            socket.emit('join', { username, password });
         }
 
-        function enterChat(aiVerified) {
-            isAI = aiVerified;
-            document.getElementById('login-container').style.display = 'none';
-            document.getElementById('chat-container').classList.add('show');
-            
-            // AI 사용자는 메시지 입력 불가
-            if (isAI) {
-                document.getElementById('message-input').classList.add('disabled');
-                document.getElementById('message-input').disabled = true;
-                document.getElementById('send-button').disabled = true;
-            } else {
-                // 일반 사용자는 메시지 입력 가능
-                document.getElementById('message-input').classList.remove('disabled');
-                document.getElementById('message-input').disabled = false;
-                document.getElementById('send-button').disabled = false;
-            }
-            
-            socket.emit('join', username);
-        }
-
-        socket.on('ai_verified', (success) => {
-            if (success) {
-                enterChat(true);
-            } else {
-                alert('AI 인증에 실패했습니다. 비밀번호를 확인해주세요.');
-            }
+        socket.on('join_success', (data) => {
+            currentUsername = data.username;
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'block';
+            document.getElementById('current-user').textContent = `현재 사용자: ${currentUsername}`;
         });
 
-        function sendMessage() {
-            if (isAI) return; // AI 사용자는 메시지 전송 불가
-            
+        socket.on('error', (data) => {
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.textContent = data.message;
+        });
+
+        socket.on('user_joined', (data) => {
+            addMessage('System', `${data.username}님이 입장하셨습니다.`, 'system');
+        });
+
+        socket.on('user_left', (data) => {
+            addMessage('System', `${data.username}님이 퇴장하셨습니다.`, 'system');
+        });
+
+        socket.on('user_list', (users) => {
+            const userListElement = document.getElementById('user-list');
+            userListElement.textContent = `접속 중인 사용자: ${users.join(', ')}`;
+        });
+
+        socket.on('chat message', (data) => {
+            addMessage(data.username, data.message, data.type);
+        });
+
+        function addMessage(username, message, type) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${type}-message`;
+            messageElement.textContent = `${username}: ${message}`;
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        document.getElementById('message-form').addEventListener('submit', (e) => {
+            e.preventDefault();
             const messageInput = document.getElementById('message-input');
             const message = messageInput.value.trim();
             
             if (message) {
-                socket.emit('chat message', message);
+                socket.emit('chat message', { message });
                 messageInput.value = '';
             }
-        }
+        });
 
         // Enter 키로 메시지 전송
         document.getElementById('message-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !isAI) {
-                sendMessage();
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('message-form').dispatchEvent(new Event('submit'));
             }
-        });
-
-        // 메시지 수신
-        socket.on('chat message', (data) => {
-            const messagesDiv = document.getElementById('messages');
-            const messageElement = document.createElement('div');
-            
-            if (data.type === 'user') {
-                messageElement.className = `message ${data.username === 'AI' ? 'ai-message' : 'user-message'}`;
-                messageElement.innerHTML = `
-                    <strong>${data.username}</strong>
-                    <p>${data.message}</p>
-                `;
-            } else {
-                messageElement.className = 'message system-message';
-                messageElement.textContent = data.message;
-            }
-            
-            messagesDiv.appendChild(messageElement);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        });
-
-        // 접속자 수 업데이트
-        socket.on('userCount', (count) => {
-            document.getElementById('user-count').textContent = `접속자 수: ${count}`;
-        });
-
-        // 연결 상태 모니터링
-        socket.on('connect', () => {
-            console.log('서버에 연결되었습니다.');
-        });
-
-        socket.on('disconnect', () => {
-            console.log('서버와의 연결이 끊어졌습니다.');
-        });
-
-        socket.on('connect_error', (error) => {
-            console.error('연결 오류:', error);
-        });
-
-        // AI 타이핑 표시
-        socket.on('ai_typing', (isTyping) => {
-            const typingIndicator = document.getElementById('typing-indicator');
-            typingIndicator.style.display = isTyping ? 'block' : 'none';
         });
     </script>
 </body>

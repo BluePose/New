@@ -16,13 +16,46 @@ const PORT = process.env.PORT || 3000;
 // 사용자 관리
 const users = new Map(); // socket.id -> username 매핑
 
+// Hugging Face API 연결 테스트
+async function testHuggingFaceAPI() {
+    try {
+        console.log('Hugging Face API 연결 테스트 시작...');
+        console.log('API 키:', HF_API_KEY ? '설정됨' : '설정되지 않음');
+
+        const response = await axios.post(
+            HF_API_URL,
+            {
+                inputs: {
+                    text: "Hello, this is a test message."
+                }
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${HF_API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        console.log('Hugging Face API 테스트 응답:', response.data);
+        console.log('Hugging Face API 연결 테스트 성공!');
+        return true;
+    } catch (error) {
+        console.error('Hugging Face API 연결 테스트 실패:', {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data
+        });
+        return false;
+    }
+}
+
 // API 호출 함수
 async function generateAIResponse(message, context) {
     try {
         console.log('Hugging Face API 호출 시작:', {
             message,
-            contextLength: context.length,
-            apiKey: HF_API_KEY ? '설정됨' : '설정되지 않음'
+            contextLength: context.length
         });
 
         const response = await axios.post(
@@ -69,6 +102,14 @@ io.on('connection', (socket) => {
             return;
         }
 
+        // 이미 존재하는 사용자 이름인지 확인
+        const existingUser = Array.from(users.values()).find(name => name === username);
+        if (existingUser) {
+            console.error('이미 존재하는 사용자 이름:', username);
+            socket.emit('error', { message: '이미 사용 중인 이름입니다.' });
+            return;
+        }
+
         if (password === '5001') {
             console.log(`AI 사용자 참여: ${username}`);
             users.set(socket.id, username);
@@ -87,6 +128,10 @@ io.on('connection', (socket) => {
         if (!conversationContexts.has(username)) {
             conversationContexts.set(username, []);
         }
+
+        // 현재 접속 중인 사용자 목록 전송
+        const userList = Array.from(users.values());
+        io.emit('user_list', userList);
     });
 
     socket.on('chat message', async (data) => {
@@ -148,11 +193,23 @@ io.on('connection', (socket) => {
                 message: `${username}님이 퇴장하셨습니다.`,
                 type: 'system'
             });
+
+            // 현재 접속 중인 사용자 목록 전송
+            const userList = Array.from(users.values());
+            io.emit('user_list', userList);
         }
     });
 });
 
-http.listen(PORT, () => {
-    console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
-    console.log('Hugging Face API 키 상태:', HF_API_KEY ? '설정됨' : '설정되지 않음');
+// 서버 시작 전 API 연결 테스트
+testHuggingFaceAPI().then(success => {
+    if (!success) {
+        console.error('Hugging Face API 연결 테스트 실패. 서버를 종료합니다.');
+        process.exit(1);
+    }
+
+    http.listen(PORT, () => {
+        console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
+        console.log('Hugging Face API 키 상태:', HF_API_KEY ? '설정됨' : '설정되지 않음');
+    });
 }); 
