@@ -4,7 +4,14 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+// SSL 인증서 검증 우회 설정 (개발 환경용)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+// Node.js 환경에서 fetch 사용을 위한 설정
+global.fetch = require('node-fetch');
+
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 
 // Google AI API 설정
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
@@ -14,7 +21,43 @@ if (!GOOGLE_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+
+// API 버전 및 기타 설정
+const requestOptions = {
+    apiVersion: 'v1',
+    timeout: 30000,
+};
+
+// 안전 설정
+const safetySettings = [
+    {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+];
+
+const model = genAI.getGenerativeModel({ 
+    model: "gemini-2.0-flash",
+    safetySettings,
+    generationConfig: {
+        temperature: 0.9,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 2048,
+    },
+}, requestOptions);
 
 // 포트 설정
 const PORT = process.env.PORT || 3000;
@@ -28,10 +71,10 @@ async function testGoogleAIConnection() {
         console.log('Google AI API 연결 테스트 시작...');
         console.log('API 키:', GOOGLE_API_KEY ? '설정됨' : '설정되지 않음');
 
-        const prompt = "Hello, how are you?";
         const chat = model.startChat();
-        const result = await chat.sendMessage(prompt);
-        const text = result.response.text();
+        const result = await chat.sendMessage("안녕하세요", requestOptions);
+        const response = await result.response;
+        const text = response.text();
 
         console.log('Google AI API 테스트 응답:', text);
         console.log('Google AI API 연결 테스트 성공!');
@@ -39,6 +82,7 @@ async function testGoogleAIConnection() {
     } catch (error) {
         console.error('Google AI API 연결 테스트 실패:', {
             message: error.message,
+            stack: error.stack,
             status: error.response?.status,
             data: error.response?.data
         });
@@ -54,22 +98,23 @@ async function generateAIResponse(message, context) {
             contextLength: context.length
         });
 
-        // 이전 대화 내용을 포함하여 프롬프트 생성
         const chat = model.startChat({
             history: context.map(msg => ({
                 role: msg.role === 'user' ? 'user' : 'model',
-                parts: msg.content
+                parts: [{ text: msg.content }]
             }))
         });
 
-        const result = await chat.sendMessage(message);
-        const aiResponse = result.response.text();
+        const result = await chat.sendMessage(message, requestOptions);
+        const response = await result.response;
+        const aiResponse = response.text();
 
         console.log('Google AI API 응답 성공:', aiResponse);
         return aiResponse;
     } catch (error) {
         console.error('Google AI API 오류:', {
             message: error.message,
+            stack: error.stack,
             status: error.response?.status,
             data: error.response?.data
         });
