@@ -29,12 +29,9 @@ async function testGoogleAIConnection() {
         console.log('API 키:', GOOGLE_API_KEY ? '설정됨' : '설정되지 않음');
 
         const prompt = "Hello, how are you?";
-        const result = await model.generateContent({
-            contents: [{ role: "user", parts: [{ text: prompt }] }]
-        });
-
-        const response = await result.response;
-        const text = response.text();
+        const chat = model.startChat();
+        const result = await chat.sendMessage(prompt);
+        const text = result.response.text();
 
         console.log('Google AI API 테스트 응답:', text);
         console.log('Google AI API 연결 테스트 성공!');
@@ -58,29 +55,15 @@ async function generateAIResponse(message, context) {
         });
 
         // 이전 대화 내용을 포함하여 프롬프트 생성
-        const messages = context.map(msg => ({
-            role: msg.role === 'user' ? 'user' : 'model',
-            parts: [{ text: msg.content }]
-        }));
-
-        // 현재 메시지 추가
-        messages.push({
-            role: 'user',
-            parts: [{ text: message }]
+        const chat = model.startChat({
+            history: context.map(msg => ({
+                role: msg.role === 'user' ? 'user' : 'model',
+                parts: msg.content
+            }))
         });
 
-        const result = await model.generateContent({
-            contents: messages,
-            generationConfig: {
-                temperature: 0.7,
-                topK: 40,
-                topP: 0.95,
-                maxOutputTokens: 1024,
-            },
-        });
-
-        const response = await result.response;
-        const aiResponse = response.text();
+        const result = await chat.sendMessage(message);
+        const aiResponse = result.response.text();
 
         console.log('Google AI API 응답 성공:', aiResponse);
         return aiResponse;
