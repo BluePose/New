@@ -4,157 +4,258 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>실시간 채팅</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Arial', sans-serif;
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #f5f6fa;
+            --text-color: #2c3e50;
+            --border-color: #e1e1e1;
+            --success-color: #2ecc71;
+            --error-color: #e74c3c;
+        }
+
+        * {
             margin: 0;
-            padding: 20px;
-            background-color: #f0f2f5;
+            padding: 0;
+            box-sizing: border-box;
         }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
         .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            padding: 20px;
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 1rem;
         }
+
+        .chat-wrapper {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
         #login-container {
+            padding: 2rem;
             text-align: center;
-            margin-bottom: 20px;
         }
-        #chat-container {
-            display: none;
-        }
-        #messages {
-            height: 400px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-        }
-        .message {
-            margin-bottom: 10px;
-            padding: 8px;
-            border-radius: 5px;
-        }
-        .user-message {
-            background-color: #e3f2fd;
-        }
-        .system-message {
-            background-color: #f5f5f5;
-            color: #666;
-            font-style: italic;
-        }
-        .input-container {
-            display: flex;
-            gap: 10px;
-        }
-        #message-input {
-            flex-grow: 1;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-        #message-input.disabled {
-            background-color: #f5f5f5;
-            cursor: not-allowed;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #2196f3;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #1976d2;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        #user-count {
-            text-align: right;
-            color: #666;
-            margin-bottom: 10px;
-        }
+
         .login-form {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
             max-width: 400px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 2rem;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        .login-form input {
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 16px;
+
+        .login-form h2 {
+            margin-bottom: 1.5rem;
+            color: var(--primary-color);
         }
-        .ai-option {
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #357abd;
+        }
+
+        #chat-container {
+            display: none;
+            height: 80vh;
             display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-            margin: 10px 0;
+            flex-direction: column;
         }
+
+        .chat-header {
+            padding: 1rem;
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background-color: white;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            padding: 0.8rem;
+            border-radius: 10px;
+            max-width: 80%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message {
+            background-color: var(--primary-color);
+            color: white;
+            margin-left: auto;
+        }
+
+        .ai-message {
+            background-color: #f0f2f5;
+            margin-right: auto;
+        }
+
+        .system-message {
+            background-color: #f8f9fa;
+            color: #666;
+            font-style: italic;
+            text-align: center;
+            margin: 1rem auto;
+            max-width: 90%;
+        }
+
+        .input-container {
+            padding: 1rem;
+            background-color: white;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 1rem;
+        }
+
+        #message-input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .ai-option {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
         .ai-option label {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 0.5rem;
             cursor: pointer;
         }
-        .ai-option input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
+
         .ai-password-container {
             display: none;
-            margin-top: 10px;
+            margin-top: 1rem;
         }
+
         .ai-password-container.show {
             display: block;
         }
-        .user-status {
-            display: none; /* 사용자 상태 표시 숨김 */
+
+        .typing-indicator {
+            display: none;
+            padding: 0.5rem;
+            color: #666;
+            font-style: italic;
+        }
+
+        .typing-indicator.show {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 0;
+                padding: 0;
+            }
+
+            .chat-wrapper {
+                border-radius: 0;
+                height: 100vh;
+            }
+
+            #chat-container {
+                height: 100vh;
+            }
+
+            .message {
+                max-width: 90%;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div id="login-container">
-            <h2>채팅방 입장</h2>
-            <div class="login-form">
-                <input type="text" id="username-input" placeholder="사용자 이름을 입력하세요">
-                <div class="ai-option">
-                    <label>
-                        <input type="checkbox" id="ai-toggle">
-                        AI 사용자로 참여
-                    </label>
+        <div class="chat-wrapper">
+            <div id="login-container">
+                <div class="login-form">
+                    <h2>채팅방 입장</h2>
+                    <div class="form-group">
+                        <input type="text" id="username-input" placeholder="사용자 이름을 입력하세요">
+                    </div>
+                    <div class="ai-option">
+                        <label>
+                            <input type="checkbox" id="ai-toggle">
+                            AI 사용자로 참여
+                        </label>
+                    </div>
+                    <div id="ai-password-container" class="ai-password-container">
+                        <input type="password" id="ai-password" placeholder="AI 비밀번호를 입력하세요">
+                    </div>
+                    <button onclick="joinChat()">입장하기</button>
                 </div>
-                <div id="ai-password-container" class="ai-password-container">
-                    <input type="password" id="ai-password" placeholder="AI 비밀번호를 입력하세요">
+            </div>
+            <div id="chat-container">
+                <div class="chat-header">
+                    <h3>실시간 채팅</h3>
+                    <div id="user-count">접속자 수: 0</div>
                 </div>
-                <button onclick="joinChat()">입장하기</button>
-            </div>
-        </div>
-        <div id="chat-container">
-            <div class="user-status" id="user-status">
-                <div class="status-indicator"></div>
-                <span id="status-text">일반 사용자</span>
-            </div>
-            <div id="user-count">접속자 수: 0</div>
-            <div id="messages"></div>
-            <div class="input-container">
-                <input type="text" id="message-input" placeholder="메시지를 입력하세요">
-                <button onclick="sendMessage()" id="send-button">전송</button>
+                <div id="messages"></div>
+                <div class="typing-indicator" id="typing-indicator">AI가 입력 중...</div>
+                <div class="input-container">
+                    <input type="text" id="message-input" placeholder="메시지를 입력하세요">
+                    <button onclick="sendMessage()" id="send-button">전송</button>
+                </div>
             </div>
         </div>
     </div>
@@ -253,8 +354,11 @@
             const messageElement = document.createElement('div');
             
             if (data.type === 'user') {
-                messageElement.className = 'message user-message';
-                messageElement.textContent = `${data.username}: ${data.message}`;
+                messageElement.className = `message ${data.username === 'AI' ? 'ai-message' : 'user-message'}`;
+                messageElement.innerHTML = `
+                    <strong>${data.username}</strong>
+                    <p>${data.message}</p>
+                `;
             } else {
                 messageElement.className = 'message system-message';
                 messageElement.textContent = data.message;
@@ -280,6 +384,12 @@
 
         socket.on('connect_error', (error) => {
             console.error('연결 오류:', error);
+        });
+
+        // AI 타이핑 표시
+        socket.on('ai_typing', (isTyping) => {
+            const typingIndicator = document.getElementById('typing-indicator');
+            typingIndicator.style.display = isTyping ? 'block' : 'none';
         });
     </script>
 </body>
