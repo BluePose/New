@@ -8,9 +8,6 @@ const path = require('path');
 // SSL 인증서 검증 우회 설정 (개발 환경용)
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-// Node.js 환경에서 fetch 사용을 위한 설정
-global.fetch = require('node-fetch');
-
 const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 
 // Google AI API 설정
