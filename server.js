@@ -4,7 +4,7 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 
 // OpenAI API 설정
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -13,10 +13,9 @@ if (!OPENAI_API_KEY) {
     process.exit(1);
 }
 
-const configuration = new Configuration({
+const openai = new OpenAI({
     apiKey: OPENAI_API_KEY
 });
-const openai = new OpenAIApi(configuration);
 
 // 포트 설정
 const PORT = process.env.PORT || 3000;
@@ -30,7 +29,7 @@ async function testOpenAIConnection() {
         console.log('OpenAI API 연결 테스트 시작...');
         console.log('API 키:', OPENAI_API_KEY ? '설정됨' : '설정되지 않음');
 
-        const completion = await openai.createChatCompletion({
+        const completion = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
             messages: [
                 {
@@ -41,7 +40,7 @@ async function testOpenAIConnection() {
             max_tokens: 5
         });
 
-        console.log('OpenAI API 테스트 응답:', completion.data);
+        console.log('OpenAI API 테스트 응답:', completion);
         console.log('OpenAI API 연결 테스트 성공!');
         return true;
     } catch (error) {
@@ -70,7 +69,7 @@ async function generateAIResponse(message, context) {
             contextLength: context.length
         });
 
-        const completion = await openai.createChatCompletion({
+        const completion = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
             messages: [
                 {
@@ -89,7 +88,7 @@ async function generateAIResponse(message, context) {
             frequency_penalty: 0.3
         });
 
-        const response = completion.data.choices[0].message.content;
+        const response = completion.choices[0].message.content;
         console.log('OpenAI API 응답 성공:', response);
         return response;
     } catch (error) {
