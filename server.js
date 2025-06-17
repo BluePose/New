@@ -15,7 +15,7 @@ if (!HF_API_KEY) {
 
 const hf = new HfInference(HF_API_KEY);
 // 더 작고 안정적인 모델로 변경
-const MODEL_ID = "stabilityai/stablelm-zephyr-3b";
+const MODEL_ID = "facebook/opt-125m";
 
 // 포트 설정
 const PORT = process.env.PORT || 3000;
@@ -63,23 +63,22 @@ async function generateAIResponse(message, context) {
         // 이전 대화 내용을 포함하여 프롬프트 생성
         const pastMessages = context
             .slice(-6) // 최근 6개의 메시지만 포함
-            .map(msg => `<|${msg.role === 'user' ? 'user' : 'assistant'}|>\n${msg.content}<|endoftext|>`)
+            .map(msg => `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`)
             .join('\n');
 
         const fullPrompt = pastMessages ? 
-            `${pastMessages}\n<|user|>\n${message}<|endoftext|>\n<|assistant|>` : 
-            `<|user|>\n${message}<|endoftext|>\n<|assistant|>`;
+            `${pastMessages}\nHuman: ${message}\nAssistant:` : 
+            `Human: ${message}\nAssistant:`;
 
         const response = await hf.textGeneration({
             model: MODEL_ID,
             inputs: fullPrompt,
             parameters: {
-                max_new_tokens: 250,
+                max_new_tokens: 150,
                 temperature: 0.7,
                 top_p: 0.95,
                 top_k: 50,
                 repetition_penalty: 1.15,
-                stop: ["<|endoftext|>", "<|user|>"],
                 return_full_text: false
             }
         });
