@@ -57,26 +57,43 @@
         }
 
         .message {
-            margin-bottom: 10px;
+            margin: 5px;
             padding: 8px;
             border-radius: 5px;
-            word-wrap: break-word;
+        }
+
+        .system-message {
+            background-color: #f0f0f0;
+            color: #666;
         }
 
         .user-message {
             background-color: #e3f2fd;
-            margin-left: 20%;
+            margin-left: 20px;
         }
 
         .ai-message {
             background-color: #f5f5f5;
-            margin-right: 20%;
+            margin-right: 20px;
         }
 
-        .system-message {
+        .other-message {
             background-color: #fff3e0;
-            text-align: center;
-            font-style: italic;
+        }
+
+        .username {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .timestamp {
+            color: #666;
+            font-size: 0.8em;
+            margin-right: 5px;
+        }
+
+        .content {
+            word-break: break-word;
         }
 
         #message-form {
@@ -198,22 +215,39 @@
 
         // 채팅 메시지 표시 함수
         function displayMessage(data) {
-            const messagesDiv = document.getElementById('messages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message';
-            
-            // 시간 포맷팅
-            const timestamp = new Date(data.timestamp);
-            const timeString = timestamp.toLocaleTimeString('ko-KR');
-            
-            messageDiv.innerHTML = `
-                <span class="username">${data.username}</span>
-                <span class="timestamp">(${timeString}): </span>
-                <span class="content">${data.content}</span>
-            `;
-            
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            try {
+                const messagesDiv = document.getElementById('messages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                
+                // 시간 포맷팅
+                const timestamp = new Date(data.timestamp);
+                const timeString = timestamp.toLocaleTimeString('ko-KR');
+                
+                // 메시지 타입에 따른 스타일 지정
+                let messageClass = 'other-message';
+                if (data.username === 'System') {
+                    messageClass = 'system-message';
+                } else if (data.username === currentUsername) {
+                    messageClass = 'user-message';
+                } else if (data.username === '테스트 AI') {
+                    messageClass = 'ai-message';
+                }
+                
+                messageDiv.className = `message ${messageClass}`;
+                messageDiv.innerHTML = `
+                    <span class="username">${data.username}</span>
+                    <span class="timestamp">(${timeString})</span>
+                    <span class="content">${data.content}</span>
+                `;
+                
+                messagesDiv.appendChild(messageDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                
+                console.log('메시지 표시:', data);
+            } catch (error) {
+                console.error('메시지 표시 중 오류:', error);
+            }
         }
 
         // 메시지 전송 처리
@@ -223,13 +257,20 @@
             const message = messageInput.value.trim();
             
             if (message && !isAIUser) {
+                console.log('메시지 전송:', message);
                 socket.emit('chat_message', message);
                 messageInput.value = '';
             }
         };
 
         // 서버로부터 메시지 수신
+        socket.on('message', (data) => {
+            console.log('메시지 수신:', data);
+            displayMessage(data);
+        });
+        
         socket.on('chat_message', (data) => {
+            console.log('채팅 메시지 수신:', data);
             displayMessage(data);
         });
 
@@ -252,11 +293,14 @@
                 document.getElementById('message-form').style.pointerEvents = 'none';
                 messageInput.style.backgroundColor = '#f5f5f5';
             }
+            
+            console.log('입장 성공:', data);
         });
 
         // 입장 오류
         socket.on('join_error', (message) => {
             document.getElementById('error-message').textContent = message;
+            console.error('입장 오류:', message);
         });
     </script>
 </body>

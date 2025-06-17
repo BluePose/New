@@ -214,14 +214,14 @@ io.on('connection', (socket) => {
             socket.emit('join_success', { username, isAI });
             
             // 시스템 메시지 전송
-            const joinMessage = `${username}님이 채팅방에 참여하셨습니다.`;
+            const joinMessage = `${username} 사용자가 채팅방에 참여했습니다.`;
             io.to('chat').emit('message', {
                 username: 'System',
                 content: joinMessage,
                 timestamp: new Date()
             });
 
-            console.log(`${username} 사용자가 채팅방에 참여했습니다.`);
+            console.log(joinMessage);
         } catch (error) {
             console.error('참여 처리 중 오류:', error);
             socket.emit('join_error', '참여 처리 중 오류가 발생했습니다.');
@@ -231,20 +231,26 @@ io.on('connection', (socket) => {
     // 메시지 수신 및 전송
     socket.on('chat_message', async (message) => {
         try {
+            if (!socket.username) return;  // 로그인하지 않은 사용자 처리
+
             const timestamp = new Date();
             
             // 일반 사용자 메시지 처리
-            io.to('chat').emit('message', {
-                username: socket.username,
-                content: message,
-                timestamp
-            });
-
-            // AI 응답 생성 및 전송
             if (!socket.isAI) {
+                console.log(`메시지 수신 [${socket.username}]: ${message}`);
+                
+                // 메시지 전송
+                io.to('chat').emit('message', {
+                    username: socket.username,
+                    content: message,
+                    timestamp
+                });
+
+                // AI 응답 생성 및 전송
                 try {
                     const aiResponse = await generateAIResponse(message, conversationHistory);
-                    
+                    console.log('AI 원본 응답:', aiResponse);
+
                     // AI 응답 전송
                     setTimeout(() => {
                         io.to('chat').emit('message', {
