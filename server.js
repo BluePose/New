@@ -146,10 +146,10 @@ AI 응답:`;
 
         // 생성 설정
         const generationConfig = {
-            temperature: 0.8,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 1000,
+            temperature: 0.7,
+            topK: 20,
+            topP: 0.8,
+            maxOutputTokens: 150,
         };
 
         const result = await model.generateContent({
@@ -159,6 +159,7 @@ AI 응답:`;
 
         const response = await result.response;
         const aiResponse = response.text();
+        console.log('AI 원본 응답:', aiResponse);  // 디버깅을 위한 로그 추가
 
         // 응답에서 이모티콘 제거
         const cleanResponse = aiResponse.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2702}-\u{27B0}]|[\u{24C2}-\u{1F251}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F200}-\u{1F2FF}]|[\u{2100}-\u{214F}]/gu, '')
@@ -289,11 +290,52 @@ io.on('connection', (socket) => {
     });
 });
 
+// Gemini API 테스트 함수
+async function testGeminiKorean() {
+    try {
+        const testPrompt = "다음 질문에 한국어로 답변해주세요: 안녕하세요, 당신은 누구인가요?";
+        
+        const generationConfig = {
+            temperature: 0.7,
+            topK: 20,
+            topP: 0.8,
+            maxOutputTokens: 150,
+        };
+
+        console.log('테스트 시작 - 프롬프트:', testPrompt);
+
+        const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: testPrompt }] }],
+            generationConfig,
+        });
+
+        const response = await result.response;
+        const text = response.text();
+        
+        console.log('테스트 응답:', text);
+        console.log('응답 길이:', text.length);
+        console.log('응답 인코딩:', Buffer.from(text).toString('hex'));
+        
+        return text;
+    } catch (error) {
+        console.error('테스트 중 오류 발생:', error);
+        throw error;
+    }
+}
+
 // 서버 시작 전 API 연결 테스트
-testGoogleAIConnection().then(success => {
+testGoogleAIConnection().then(async success => {
     if (!success) {
         console.error('Google AI API 연결 테스트 실패. 서버를 종료합니다.');
         process.exit(1);
+    }
+
+    // 한국어 테스트 실행
+    try {
+        const testResult = await testGeminiKorean();
+        console.log('Gemini API 한국어 테스트 완료:', testResult);
+    } catch (error) {
+        console.error('Gemini API 한국어 테스트 실패:', error);
     }
 
     http.listen(PORT, () => {
