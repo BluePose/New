@@ -13,7 +13,7 @@ const openai = new OpenAIApi(configuration);
 
 app.use(express.static('public'));
 
-const AI_PASSWORD = '5001'; // AI 비밀번호를 5001로 변경
+const AI_PASSWORD = '5001';
 let users = new Set();
 let aiUser = null;
 
@@ -45,7 +45,7 @@ async function generateAIResponse(message, context) {
         return completion.data.choices[0].message.content;
     } catch (error) {
         console.error('OpenAI API 오류:', error);
-        return "죄송합니다. 응답을 생성하는 중에 오류가 발생했습니다.";
+        throw error; // 에러를 상위로 전파
     }
 }
 
@@ -55,10 +55,12 @@ io.on('connection', (socket) => {
     socket.on('join', (username) => {
         users.add(username);
         io.emit('userCount', users.size);
-        io.emit('chat message', {
-            type: 'system',
-            message: `${username}님이 입장하셨습니다.`
-        });
+        if (username !== 'AI') {
+            io.emit('chat message', {
+                type: 'system',
+                message: `${username}님이 입장하셨습니다.`
+            });
+        }
 
         // 새로운 사용자의 대화 컨텍스트 초기화
         if (!conversationContexts.has(username)) {
@@ -67,18 +69,15 @@ io.on('connection', (socket) => {
     });
 
     socket.on('verify_ai', async (password) => {
-        console.log('AI 인증 시도:', password); // 디버깅을 위한 로그 추가
+        console.log('AI 인증 시도:', password);
         if (password === AI_PASSWORD) {
             aiUser = socket.id;
             socket.emit('ai_verified', true);
             users.add('AI');
             io.emit('userCount', users.size);
-            io.emit('chat message', {
-                type: 'system',
-                message: 'AI가 입장하셨습니다.'
-            });
+            // AI 입장 메시지 제거
         } else {
-            console.log('AI 인증 실패:', password); // 디버깅을 위한 로그 추가
+            console.log('AI 인증 실패:', password);
             socket.emit('ai_verified', false);
         }
     });
@@ -98,33 +97,36 @@ io.on('connection', (socket) => {
             // AI 타이핑 표시
             io.emit('ai_typing', true);
 
-            // 사용자의 대화 컨텍스트 가져오기
-            const context = conversationContexts.get(username) || [];
-            
-            // AI 응답 생성
-            const aiResponse = await generateAIResponse(message, context);
+            try {
+                // 사용자의 대화 컨텍스트 가져오기
+                const context = conversationContexts.get(username) || [];
+                
+                // AI 응답 생성
+                const aiResponse = await generateAIResponse(message, context);
 
-            // 대화 컨텍스트 업데이트
-            context.push(
-                { role: "user", content: message },
-                { role: "assistant", content: aiResponse }
-            );
+                // 대화 컨텍스트 업데이트
+                context.push(
+                    { role: "user", content: message },
+                    { role: "assistant", content: aiResponse }
+                );
 
-            // 컨텍스트 길이 제한 (최근 10개 메시지만 유지)
-            if (context.length > 20) {
-                context.splice(0, 2);
+                // 컨텍스트 길이 제한 (최근 10개 메시지만 유지)
+                if (context.length > 20) {
+                    context.splice(0, 2);
+                }
+                conversationContexts.set(username, context);
+
+                // AI 응답 전송
+                io.emit('chat message', {
+                    type: 'user',
+                    username: 'AI',
+                    message: aiResponse
+                });
+            } catch (error) {
+                console.error('AI 응답 생성 중 오류:', error);
+                // 에러 발생 시에도 타이핑 표시 제거
+                io.emit('ai_typing', false);
             }
-            conversationContexts.set(username, context);
-
-            // AI 타이핑 표시 제거
-            io.emit('ai_typing', false);
-
-            // AI 응답 전송
-            io.emit('chat message', {
-                type: 'user',
-                username: 'AI',
-                message: aiResponse
-            });
         }
     });
 
@@ -136,7 +138,7 @@ io.on('connection', (socket) => {
             const username = Array.from(users).find(user => user !== 'AI');
             if (username) {
                 users.delete(username);
-                conversationContexts.delete(username); // 사용자 퇴장 시 컨텍스트 삭제
+                conversationContexts.delete(username);
                 io.emit('chat message', {
                     type: 'system',
                     message: `${username}님이 퇴장하셨습니다.`
