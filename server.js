@@ -14,7 +14,7 @@ if (!GOOGLE_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
 
 // 포트 설정
 const PORT = process.env.PORT || 3000;
@@ -28,7 +28,10 @@ async function testGoogleAIConnection() {
         console.log('Google AI API 연결 테스트 시작...');
         console.log('API 키:', GOOGLE_API_KEY ? '설정됨' : '설정되지 않음');
 
-        const result = await model.generateContent('Hello, how are you?');
+        const prompt = "Hello, how are you?";
+        const result = await model.generateContent({
+            contents: [{ role: "user", parts: [{ text: prompt }] }]
+        });
         const response = await result.response;
         const text = response.text();
 
@@ -57,7 +60,7 @@ async function generateAIResponse(message, context) {
         const chat = model.startChat({
             history: context.map(msg => ({
                 role: msg.role === 'user' ? 'user' : 'model',
-                parts: msg.content
+                parts: [{ text: msg.content }]
             }))
         });
 
