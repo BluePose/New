@@ -4,11 +4,19 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
-const axios = require('axios');
+const { Configuration, OpenAIApi } = require('openai');
 
-// Hugging Face API 설정
-const HF_API_KEY = process.env.HF_API_KEY;
-const HF_API_URL = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium";
+// OpenAI API 설정
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if (!OPENAI_API_KEY) {
+    console.error('OpenAI API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.');
+    process.exit(1);
+}
+
+const configuration = new Configuration({
+    apiKey: OPENAI_API_KEY
+});
+const openai = new OpenAIApi(configuration);
 
 // 포트 설정
 const PORT = process.env.PORT || 3000;
@@ -16,38 +24,40 @@ const PORT = process.env.PORT || 3000;
 // 사용자 관리
 const users = new Map(); // socket.id -> username 매핑
 
-// Hugging Face API 연결 테스트
-async function testHuggingFaceAPI() {
+// OpenAI API 연결 테스트
+async function testOpenAIConnection() {
     try {
-        console.log('Hugging Face API 연결 테스트 시작...');
-        console.log('API 키:', HF_API_KEY ? '설정됨' : '설정되지 않음');
+        console.log('OpenAI API 연결 테스트 시작...');
+        console.log('API 키:', OPENAI_API_KEY ? '설정됨' : '설정되지 않음');
 
-        const response = await axios.post(
-            HF_API_URL,
-            {
-                inputs: "Hello, this is a test message.",
-                parameters: {
-                    max_length: 50,
-                    temperature: 0.7
+        const completion = await openai.createChatCompletion({
+            model: "gpt-3.5-turbo",
+            messages: [
+                {
+                    role: "system",
+                    content: "테스트 메시지입니다."
                 }
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${HF_API_KEY}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
+            ],
+            max_tokens: 5
+        });
 
-        console.log('Hugging Face API 테스트 응답:', response.data);
-        console.log('Hugging Face API 연결 테스트 성공!');
+        console.log('OpenAI API 테스트 응답:', completion.data);
+        console.log('OpenAI API 연결 테스트 성공!');
         return true;
     } catch (error) {
-        console.error('Hugging Face API 연결 테스트 실패:', {
+        console.error('OpenAI API 연결 테스트 실패:', {
             message: error.message,
             status: error.response?.status,
             data: error.response?.data
         });
+
+        if (error.response?.data?.error?.code === 'insufficient_quota') {
+            console.error('OpenAI API 할당량이 부족합니다. 다음 단계를 확인해주세요:');
+            console.error('1. OpenAI 계정에 결제 정보를 등록해주세요.');
+            console.error('2. https://platform.openai.com/account/billing 에서 결제 정보를 추가해주세요.');
+            console.error('3. 또는 다른 OpenAI API 키를 사용해주세요.');
+        }
+
         return false;
     }
 }
@@ -55,38 +65,44 @@ async function testHuggingFaceAPI() {
 // API 호출 함수
 async function generateAIResponse(message, context) {
     try {
-        console.log('Hugging Face API 호출 시작:', {
+        console.log('OpenAI API 호출 시작:', {
             message,
             contextLength: context.length
         });
 
-        const response = await axios.post(
-            HF_API_URL,
-            {
-                inputs: message,
-                parameters: {
-                    max_length: 100,
-                    temperature: 0.7,
-                    top_p: 0.9,
-                    repetition_penalty: 1.2
+        const completion = await openai.createChatCompletion({
+            model: "gpt-3.5-turbo",
+            messages: [
+                {
+                    role: "system",
+                    content: "당신은 친절하고 도움이 되는 AI 어시스턴트입니다. 사용자와 자연스러운 대화를 나누며, 이전 대화 내용을 기억하고 맥락에 맞는 응답을 제공합니다. 때로는 재미있고 유머러스한 대화를 나누기도 합니다."
+                },
+                ...context,
+                {
+                    role: "user",
+                    content: message
                 }
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${HF_API_KEY}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
+            ],
+            temperature: 0.7,
+            max_tokens: 150,
+            presence_penalty: 0.6,
+            frequency_penalty: 0.3
+        });
 
-        console.log('Hugging Face API 응답 성공:', response.data);
-        return response.data.generated_text || response.data[0].generated_text;
+        const response = completion.data.choices[0].message.content;
+        console.log('OpenAI API 응답 성공:', response);
+        return response;
     } catch (error) {
-        console.error('Hugging Face API 오류:', {
+        console.error('OpenAI API 오류:', {
             message: error.message,
             status: error.response?.status,
             data: error.response?.data
         });
+
+        if (error.response?.data?.error?.code === 'insufficient_quota') {
+            throw new Error('OpenAI API 할당량이 부족합니다. 결제 정보를 등록하거나 다른 API 키를 사용해주세요.');
+        }
+
         throw new Error(`AI 응답 생성 중 오류가 발생했습니다: ${error.message}`);
     }
 }
@@ -208,14 +224,14 @@ io.on('connection', (socket) => {
 });
 
 // 서버 시작 전 API 연결 테스트
-testHuggingFaceAPI().then(success => {
+testOpenAIConnection().then(success => {
     if (!success) {
-        console.error('Hugging Face API 연결 테스트 실패. 서버를 종료합니다.');
+        console.error('OpenAI API 연결 테스트 실패. 서버를 종료합니다.');
         process.exit(1);
     }
 
     http.listen(PORT, () => {
         console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
-        console.log('Hugging Face API 키 상태:', HF_API_KEY ? '설정됨' : '설정되지 않음');
+        console.log('OpenAI API 키 상태:', OPENAI_API_KEY ? '설정됨' : '설정되지 않음');
     });
 }); 
