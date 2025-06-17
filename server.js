@@ -136,8 +136,18 @@ io.on('connection', (socket) => {
             return;
         }
 
+        // 이미 존재하는 사용자 이름인지 확인
+        const existingUser = Array.from(users.values()).find(user => user.username === username);
+        if (existingUser) {
+            socket.emit('joinError', { message: '이미 사용 중인 이름입니다.' });
+            return;
+        }
+
         users.set(socket.id, { username, isAI });
         socket.join('chat');
+        
+        // 입장 성공 이벤트 전송
+        socket.emit('join_success', { username, isAI });
         
         // 입장 메시지 전송
         io.to('chat').emit('message', {

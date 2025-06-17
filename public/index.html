@@ -198,6 +198,25 @@
             socket.emit('join', { username, isAI: isAIUser, password });
         }
 
+        // 로그인 성공 시 UI 업데이트
+        socket.on('join_success', (data) => {
+            currentUsername = data.username;
+            isAIUser = data.isAI;
+            
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'block';
+            document.getElementById('current-user').textContent = `현재 사용자: ${currentUsername}`;
+
+            // AI 사용자인 경우 메시지 입력 비활성화
+            if (isAIUser) {
+                const messageInput = document.getElementById('message-input');
+                const sendButton = document.querySelector('#message-form button');
+                messageInput.disabled = true;
+                sendButton.disabled = true;
+                messageInput.placeholder = 'AI 사용자는 메시지를 입력할 수 없습니다.';
+            }
+        });
+
         socket.on('joinError', (data) => {
             const errorMessage = document.getElementById('error-message');
             errorMessage.textContent = data.message;
@@ -235,23 +254,6 @@
             if (message && !isAIUser) {
                 socket.emit('message', { content: message });
                 messageInput.value = '';
-            }
-        });
-
-        // 로그인 성공 시 UI 업데이트
-        socket.on('join_success', (data) => {
-            currentUsername = data.username;
-            document.getElementById('login-form').style.display = 'none';
-            document.getElementById('chat-container').style.display = 'block';
-            document.getElementById('current-user').textContent = `현재 사용자: ${currentUsername}`;
-
-            // AI 사용자인 경우 메시지 입력 비활성화
-            if (isAIUser) {
-                const messageInput = document.getElementById('message-input');
-                const sendButton = document.querySelector('#message-form button');
-                messageInput.disabled = true;
-                sendButton.disabled = true;
-                messageInput.placeholder = 'AI 사용자는 메시지를 입력할 수 없습니다.';
             }
         });
 
