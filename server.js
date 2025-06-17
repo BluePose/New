@@ -8,7 +8,7 @@ const axios = require('axios');
 
 // Hugging Face API 설정
 const HF_API_KEY = process.env.HF_API_KEY;
-const HF_API_URL = "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill";
+const HF_API_URL = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium";
 
 // 포트 설정
 const PORT = process.env.PORT || 3000;
@@ -25,8 +25,10 @@ async function testHuggingFaceAPI() {
         const response = await axios.post(
             HF_API_URL,
             {
-                inputs: {
-                    text: "Hello, this is a test message."
+                inputs: "Hello, this is a test message.",
+                parameters: {
+                    max_length: 50,
+                    temperature: 0.7
                 }
             },
             {
@@ -61,8 +63,12 @@ async function generateAIResponse(message, context) {
         const response = await axios.post(
             HF_API_URL,
             {
-                inputs: {
-                    text: message
+                inputs: message,
+                parameters: {
+                    max_length: 100,
+                    temperature: 0.7,
+                    top_p: 0.9,
+                    repetition_penalty: 1.2
                 }
             },
             {
@@ -74,7 +80,7 @@ async function generateAIResponse(message, context) {
         );
 
         console.log('Hugging Face API 응답 성공:', response.data);
-        return response.data.generated_text;
+        return response.data.generated_text || response.data[0].generated_text;
     } catch (error) {
         console.error('Hugging Face API 오류:', {
             message: error.message,
