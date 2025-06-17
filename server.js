@@ -183,6 +183,7 @@ app.use(express.static('public'));
 // 대화 컨텍스트 저장소
 const conversationContexts = new Map();
 
+// 메시지 전송 처리
 io.on('connection', (socket) => {
     console.log('새로운 사용자가 연결되었습니다.');
 
@@ -203,24 +204,24 @@ io.on('connection', (socket) => {
                 return;
             }
 
+            // 사용자 정보 저장
             socket.username = username;
             socket.isAI = isAI;
             users.set(socket.id, { username, isAI });
             socket.join('chat');
             
-            // 버퍼 인코딩 설정
-            socket.setEncoding('utf8');
-
+            // 입장 성공 알림
             socket.emit('join_success', { username, isAI });
-            io.to('chat').emit('userList', Array.from(users.values()));
             
-            // 시스템 메시지
+            // 시스템 메시지 전송
             const joinMessage = `${username}님이 채팅방에 참여하셨습니다.`;
             io.to('chat').emit('message', {
                 username: 'System',
                 content: joinMessage,
                 timestamp: new Date()
             });
+
+            console.log(`${username} 사용자가 채팅방에 참여했습니다.`);
         } catch (error) {
             console.error('참여 처리 중 오류:', error);
             socket.emit('join_error', '참여 처리 중 오류가 발생했습니다.');
@@ -244,20 +245,17 @@ io.on('connection', (socket) => {
                 try {
                     const aiResponse = await generateAIResponse(message, conversationHistory);
                     
-                    // 응답 텍스트 인코딩 확인 및 변환
-                    const encodedResponse = Buffer.from(aiResponse, 'utf8').toString('utf8');
-                    
                     // AI 응답 전송
                     setTimeout(() => {
                         io.to('chat').emit('message', {
                             username: '테스트 AI',
-                            content: encodedResponse,
+                            content: aiResponse,
                             timestamp: new Date()
                         });
                         
                         // 대화 기록 업데이트
                         conversationHistory.push({ username: socket.username, content: message });
-                        conversationHistory.push({ username: '테스트 AI', content: encodedResponse });
+                        conversationHistory.push({ username: '테스트 AI', content: aiResponse });
                         
                         // 대화 기록 최대 50개로 제한
                         if (conversationHistory.length > 50) {
@@ -278,7 +276,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 사용자 퇴장
+    // 연결 해제
     socket.on('disconnect', () => {
         const user = users.get(socket.id);
         if (user) {

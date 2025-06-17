@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 채팅</title>
+    <title>채팅 애플리케이션</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
     <style>
@@ -149,25 +149,23 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="login-form">
-            <h2>채팅방 입장</h2>
-            <input type="text" id="username-input" placeholder="사용자 이름" required>
-            <input type="password" id="password-input" placeholder="AI 비밀번호 (선택사항)">
-            <button onclick="joinChat()">입장하기</button>
-            <div id="error-message" class="error-message"></div>
+    <div id="login-form">
+        <h2>채팅 입장</h2>
+        <input type="text" id="username-input" placeholder="사용자 이름">
+        <input type="password" id="password-input" placeholder="AI 사용자 비밀번호 (선택사항)">
+        <button onclick="joinChat()">입장하기</button>
+        <p id="error-message" style="color: red;"></p>
+    </div>
+
+    <div id="chat-container" style="display: none;">
+        <div id="chat-header">
+            <span id="current-user"></span>
         </div>
-        <div id="chat-container">
-            <div class="user-info">
-                <span id="current-user"></span>
-                <span id="user-list"></span>
-            </div>
-            <div id="messages"></div>
-            <form id="message-form">
-                <input type="text" id="message-input" placeholder="메시지를 입력하세요..." required>
-                <button type="submit">전송</button>
-            </form>
-        </div>
+        <div id="messages"></div>
+        <form id="message-form">
+            <input type="text" id="message-input" placeholder="메시지를 입력하세요...">
+            <button type="submit">전송</button>
+        </form>
     </div>
 
     <script>
@@ -198,7 +196,44 @@
             socket.emit('join', { username, isAI: isAIUser, password });
         }
 
-        // 로그인 성공 시 UI 업데이트
+        // 채팅 메시지 표시 함수
+        function displayMessage(data) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            
+            // 시간 포맷팅
+            const timestamp = new Date(data.timestamp);
+            const timeString = timestamp.toLocaleTimeString('ko-KR');
+            
+            messageDiv.innerHTML = `
+                <span class="username">${data.username}</span>
+                <span class="timestamp">(${timeString}): </span>
+                <span class="content">${data.content}</span>
+            `;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // 메시지 전송 처리
+        document.getElementById('message-form').onsubmit = (e) => {
+            e.preventDefault();
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value.trim();
+            
+            if (message && !isAIUser) {
+                socket.emit('chat_message', message);
+                messageInput.value = '';
+            }
+        };
+
+        // 서버로부터 메시지 수신
+        socket.on('chat_message', (data) => {
+            displayMessage(data);
+        });
+
+        // 입장 성공
         socket.on('join_success', (data) => {
             currentUsername = data.username;
             isAIUser = data.isAI;
@@ -216,92 +251,12 @@
                 messageInput.placeholder = 'AI 사용자는 메시지를 입력할 수 없습니다.';
                 document.getElementById('message-form').style.pointerEvents = 'none';
                 messageInput.style.backgroundColor = '#f5f5f5';
-            } else {
-                messageInput.disabled = false;
-                sendButton.disabled = false;
-                messageInput.placeholder = '메시지를 입력하세요...';
-                document.getElementById('message-form').style.pointerEvents = 'auto';
-                messageInput.style.backgroundColor = '#ffffff';
             }
         });
 
-        socket.on('joinError', (data) => {
-            const errorMessage = document.getElementById('error-message');
-            errorMessage.textContent = data.message;
-        });
-
-        socket.on('messageError', (data) => {
-            addMessage('System', data.message, 'system');
-        });
-
-        socket.on('message', (data) => {
-            addMessage(data.username, data.content, data.username === 'System' ? 'system' : 
-                      data.username === currentUsername ? 'user' : 'ai');
-        });
-
-        socket.on('userList', (users) => {
-            const userListElement = document.getElementById('user-list');
-            userListElement.textContent = `접속 중인 사용자: ${users.map(u => u.username).join(', ')}`;
-        });
-
-        function addMessage(username, content, type) {
-            const messagesDiv = document.getElementById('messages');
-            const messageElement = document.createElement('div');
-            messageElement.className = `message ${type}-message`;
-            const timestamp = new Date().toLocaleTimeString();
-            messageElement.textContent = `${username} (${timestamp}): ${content}`;
-            messagesDiv.appendChild(messageElement);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        // 채팅 메시지 표시 함수
-        function displayMessage(data) {
-            const messagesDiv = document.getElementById('messages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message';
-            
-            // 시간 포맷팅
-            const timestamp = new Date(data.timestamp);
-            const timeString = timestamp.toLocaleTimeString('ko-KR');
-            
-            // 메시지 텍스트 디코딩
-            const decodedContent = decodeURIComponent(escape(data.content));
-            
-            messageDiv.innerHTML = `
-                <span class="username">${data.username}</span>
-                <span class="timestamp">(${timeString}): </span>
-                <span class="content">${decodedContent}</span>
-            `;
-            
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        // 메시지 전송 처리
-        document.getElementById('message-form').onsubmit = (e) => {
-            e.preventDefault();
-            const messageInput = document.getElementById('message-input');
-            const message = messageInput.value.trim();
-            
-            if (message) {
-                // 메시지 인코딩
-                const encodedMessage = unescape(encodeURIComponent(message));
-                socket.emit('chat_message', encodedMessage);
-                messageInput.value = '';
-            }
-        };
-
-        // 서버로부터 메시지 수신
-        socket.on('chat_message', (data) => {
-            displayMessage(data);
-        });
-
-        // Enter 키로 메시지 전송 (AI 사용자가 아닌 경우에만)
-        document.getElementById('message-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !isAIUser) {
-                e.preventDefault();
-                document.getElementById('message-form').dispatchEvent(new Event('submit'));
-            }
+        // 입장 오류
+        socket.on('join_error', (message) => {
+            document.getElementById('error-message').textContent = message;
         });
     </script>
 </body>
