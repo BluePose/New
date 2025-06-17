@@ -13,7 +13,7 @@ const openai = new OpenAIApi(configuration);
 
 app.use(express.static('public'));
 
-const AI_PASSWORD = 'your-ai-password'; // AI 비밀번호 설정
+const AI_PASSWORD = '5001'; // AI 비밀번호를 5001로 변경
 let users = new Set();
 let aiUser = null;
 
@@ -67,6 +67,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('verify_ai', async (password) => {
+        console.log('AI 인증 시도:', password); // 디버깅을 위한 로그 추가
         if (password === AI_PASSWORD) {
             aiUser = socket.id;
             socket.emit('ai_verified', true);
@@ -77,6 +78,7 @@ io.on('connection', (socket) => {
                 message: 'AI가 입장하셨습니다.'
             });
         } else {
+            console.log('AI 인증 실패:', password); // 디버깅을 위한 로그 추가
             socket.emit('ai_verified', false);
         }
     });

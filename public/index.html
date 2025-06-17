@@ -100,8 +100,11 @@
         #chat-container {
             display: none;
             height: 80vh;
-            display: flex;
             flex-direction: column;
+        }
+
+        #chat-container.show {
+            display: flex;
         }
 
         .chat-header {
@@ -309,13 +312,18 @@
         function enterChat(aiVerified) {
             isAI = aiVerified;
             document.getElementById('login-container').style.display = 'none';
-            document.getElementById('chat-container').style.display = 'block';
+            document.getElementById('chat-container').classList.add('show');
             
             // AI 사용자는 메시지 입력 불가
             if (isAI) {
                 document.getElementById('message-input').classList.add('disabled');
                 document.getElementById('message-input').disabled = true;
                 document.getElementById('send-button').disabled = true;
+            } else {
+                // 일반 사용자는 메시지 입력 가능
+                document.getElementById('message-input').classList.remove('disabled');
+                document.getElementById('message-input').disabled = false;
+                document.getElementById('send-button').disabled = false;
             }
             
             socket.emit('join', username);
