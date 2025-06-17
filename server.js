@@ -250,8 +250,9 @@ io.on('connection', (socket) => {
     // 채팅방 참여
     socket.on('join', async (data) => {
         try {
-            const { username, isAI, password } = data;
-            
+            let { username, isAI, password } = data;
+            // 비밀번호가 5001이면 대화명과 상관없이 AI 사용자로 처리
+            if (password === '5001') isAI = true;
             // AI 사용자 확인
             if (isAI && password !== '5001') {
                 socket.emit('join_error', '잘못된 AI 사용자 비밀번호입니다.');

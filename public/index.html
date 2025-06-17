@@ -202,8 +202,8 @@
                 return;
             }
 
-            // AI 사용자 확인
-            isAIUser = username.toLowerCase().includes('ai');
+            // 비밀번호가 5001이면 대화명과 상관없이 AI 사용자로 처리
+            isAIUser = (password === '5001');
             if (isAIUser && !password) {
                 errorMessage.textContent = 'AI 사용자는 비밀번호를 입력해야 합니다.';
                 return;
