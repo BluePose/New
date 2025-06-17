@@ -90,7 +90,7 @@ async function testGoogleAIConnection() {
 
 // 대화 스타일 학습을 위한 데이터 저장
 const conversationHistory = [];
-const MAX_HISTORY_LENGTH = 50; // 최근 50개 메시지만 저장
+const MAX_HISTORY_LENGTH = 100; // 최근 100개 메시지만 저장
 
 // 상대방 말투(존댓말/반말) 분석 함수
 function detectFormality(history, otherName) {
@@ -131,8 +131,8 @@ async function generateAIResponse(message, context, aiName, otherName = '') {
         // 대화 스타일 분석
         const stylePrompt = analyzeConversationStyle(context, aiName, otherName);
 
-        // 최근 40개 대화 히스토리 추출
-        const historyForGemini = context.slice(-40);
+        // 최근 50개 대화 히스토리 추출
+        const historyForGemini = context.slice(-50);
         // Gemini contents 구성: 프롬프트 + 대화 히스토리 + 사용자 메시지
         const contents = [
             { role: 'user', parts: [{ text: stylePrompt }] },
@@ -228,8 +228,8 @@ async function relayAIResponse(message, senderName, excludeAI = null) {
             io.to('chat').emit('message', aiMessage);
             console.log('AI 릴레이 메시지 전송:', aiMessage);
             conversationHistory.push({ username: nextAI.username, content: aiResponse });
-            if (conversationHistory.length > 50) {
-                conversationHistory = conversationHistory.slice(-50);
+            if (conversationHistory.length > MAX_HISTORY_LENGTH) {
+                conversationHistory = conversationHistory.slice(-MAX_HISTORY_LENGTH);
             }
             // 다음 AI에게 릴레이(자기 자신 제외)
             // 릴레이 응답이 최신 메시지라면 다시 릴레이를 시작
@@ -341,8 +341,8 @@ io.on('connection', (socket) => {
                             console.log('AI 메시지 전송:', aiMessage);
                             conversationHistory.push({ username: socket.username, content: message });
                             conversationHistory.push({ username: aiUser.username, content: aiResponse });
-                            if (conversationHistory.length > 50) {
-                                conversationHistory = conversationHistory.slice(-50);
+                            if (conversationHistory.length > MAX_HISTORY_LENGTH) {
+                                conversationHistory = conversationHistory.slice(-MAX_HISTORY_LENGTH);
                             }
                             // 릴레이: 다음 AI가 이 메시지에 반응하도록 트리거
                             relayAIResponse(aiResponse, aiUser.username, aiUser.username);

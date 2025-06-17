@@ -243,6 +243,11 @@
                 messagesDiv.appendChild(messageDiv);
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
                 
+                // 메시지 DOM이 100개를 넘으면 오래된 메시지 제거
+                while (messagesDiv.children.length > 100) {
+                    messagesDiv.removeChild(messagesDiv.firstChild);
+                }
+                
                 console.log('메시지 표시:', {
                     username: data.username,
                     content: data.content,
