@@ -14,7 +14,8 @@ if (!HF_API_KEY) {
 }
 
 const hf = new HfInference(HF_API_KEY);
-const MODEL_ID = "mistralai/Mistral-7B-Instruct-v0.2"; // 사용할 모델 ID
+// 더 작고 안정적인 모델로 변경
+const MODEL_ID = "facebook/blenderbot-400M-distill";
 
 // 포트 설정
 const PORT = process.env.PORT || 3000;
@@ -28,12 +29,10 @@ async function testHuggingFaceConnection() {
         console.log('Hugging Face API 연결 테스트 시작...');
         console.log('API 키:', HF_API_KEY ? '설정됨' : '설정되지 않음');
 
-        const response = await hf.textGeneration({
+        const response = await hf.conversational({
             model: MODEL_ID,
-            inputs: "테스트 메시지입니다.",
-            parameters: {
-                max_new_tokens: 5,
-                temperature: 0.7
+            inputs: {
+                text: "테스트 메시지입니다."
             }
         });
 
@@ -58,23 +57,27 @@ async function generateAIResponse(message, context) {
             contextLength: context.length
         });
 
-        // 컨텍스트와 현재 메시지를 하나의 프롬프트로 결합
-        const prompt = context.map(msg => 
-            `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
-        ).join('\n') + `\nUser: ${message}\nAssistant:`;
+        // 이전 대화 내용을 포함하여 프롬프트 생성
+        const pastUserMessages = context
+            .filter(msg => msg.role === 'user')
+            .map(msg => msg.content)
+            .slice(-3); // 최근 3개의 사용자 메시지만 포함
 
-        const response = await hf.textGeneration({
+        const pastBotMessages = context
+            .filter(msg => msg.role === 'assistant')
+            .map(msg => msg.content)
+            .slice(-3); // 최근 3개의 AI 응답만 포함
+
+        const response = await hf.conversational({
             model: MODEL_ID,
-            inputs: prompt,
-            parameters: {
-                max_new_tokens: 150,
-                temperature: 0.7,
-                top_p: 0.95,
-                repetition_penalty: 1.15
+            inputs: {
+                past_user_inputs: pastUserMessages,
+                generated_responses: pastBotMessages,
+                text: message
             }
         });
 
-        const aiResponse = response.generated_text.trim();
+        const aiResponse = response.generated_text;
         console.log('Hugging Face API 응답 성공:', aiResponse);
         return aiResponse;
     } catch (error) {
