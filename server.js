@@ -186,92 +186,95 @@ const conversationContexts = new Map();
 io.on('connection', (socket) => {
     console.log('새로운 사용자가 연결되었습니다.');
 
-    // 사용자 입장
-    socket.on('join', ({ username, isAI, password }) => {
-        // AI 사용자 검증
-        if (isAI && password !== AI_PASSWORD) {
-            socket.emit('joinError', { message: 'AI 사용자는 올바른 비밀번호를 입력해야 합니다.' });
-            return;
+    // 채팅방 참여
+    socket.on('join', async (data) => {
+        try {
+            const { username, isAI, password } = data;
+            
+            // AI 사용자 확인
+            if (isAI && password !== '5001') {
+                socket.emit('join_error', '잘못된 AI 사용자 비밀번호입니다.');
+                return;
+            }
+
+            // 중복 사용자 확인
+            if (users.has(socket.id)) {
+                socket.emit('join_error', '이미 사용 중인 사용자 이름입니다.');
+                return;
+            }
+
+            socket.username = username;
+            socket.isAI = isAI;
+            users.set(socket.id, { username, isAI });
+            socket.join('chat');
+            
+            // 버퍼 인코딩 설정
+            socket.setEncoding('utf8');
+
+            socket.emit('join_success', { username, isAI });
+            io.to('chat').emit('userList', Array.from(users.values()));
+            
+            // 시스템 메시지
+            const joinMessage = `${username}님이 채팅방에 참여하셨습니다.`;
+            io.to('chat').emit('message', {
+                username: 'System',
+                content: joinMessage,
+                timestamp: new Date()
+            });
+        } catch (error) {
+            console.error('참여 처리 중 오류:', error);
+            socket.emit('join_error', '참여 처리 중 오류가 발생했습니다.');
         }
-
-        // 이미 존재하는 사용자 이름인지 확인
-        const existingUser = Array.from(users.values()).find(user => user.username === username);
-        if (existingUser) {
-            socket.emit('joinError', { message: '이미 사용 중인 이름입니다.' });
-            return;
-        }
-
-        users.set(socket.id, { username, isAI });
-        socket.join('chat');
-        
-        // 입장 성공 이벤트 전송
-        socket.emit('join_success', { username, isAI });
-        
-        // 입장 메시지 전송
-        io.to('chat').emit('message', {
-            username: 'System',
-            content: `${username}님이 입장하셨습니다.`,
-            timestamp: new Date().toLocaleTimeString()
-        });
-
-        // 사용자 목록 업데이트
-        io.to('chat').emit('userList', Array.from(users.values()));
     });
 
     // 메시지 수신 및 전송
-    socket.on('message', async ({ content }) => {
-        const user = users.get(socket.id);
-        if (!user) return;
-
-        // AI 사용자는 메시지를 보낼 수 없음
-        if (user.isAI) {
-            socket.emit('messageError', { message: 'AI 사용자는 메시지를 보낼 수 없습니다.' });
-            return;
-        }
-
-        // 일반 메시지 전송
-        io.to('chat').emit('message', {
-            username: user.username,
-            content,
-            timestamp: new Date().toLocaleTimeString()
-        });
-
-        // 대화 이력 저장
-        conversationHistory.push({
-            username: user.username,
-            content,
-            isAI: false,
-            timestamp: new Date()
-        });
-
-        // 대화 이력 크기 제한
-        if (conversationHistory.length > MAX_HISTORY_LENGTH) {
-            conversationHistory.shift();
-        }
-
-        // AI 응답 생성 및 전송
+    socket.on('chat_message', async (message) => {
         try {
-            const aiUser = Array.from(users.values()).find(u => u.isAI);
-            if (aiUser) {
-                const aiResponse = await generateAIResponse(content, []);
-                
-                // AI 응답 저장
-                conversationHistory.push({
-                    username: aiUser.username,
-                    content: aiResponse,
-                    isAI: true,
-                    timestamp: new Date()
-                });
+            const timestamp = new Date();
+            
+            // 일반 사용자 메시지 처리
+            io.to('chat').emit('message', {
+                username: socket.username,
+                content: message,
+                timestamp
+            });
 
-                io.to('chat').emit('message', {
-                    username: aiUser.username,
-                    content: aiResponse,
-                    timestamp: new Date().toLocaleTimeString()
-                });
+            // AI 응답 생성 및 전송
+            if (!socket.isAI) {
+                try {
+                    const aiResponse = await generateAIResponse(message, conversationHistory);
+                    
+                    // 응답 텍스트 인코딩 확인 및 변환
+                    const encodedResponse = Buffer.from(aiResponse, 'utf8').toString('utf8');
+                    
+                    // AI 응답 전송
+                    setTimeout(() => {
+                        io.to('chat').emit('message', {
+                            username: '테스트 AI',
+                            content: encodedResponse,
+                            timestamp: new Date()
+                        });
+                        
+                        // 대화 기록 업데이트
+                        conversationHistory.push({ username: socket.username, content: message });
+                        conversationHistory.push({ username: '테스트 AI', content: encodedResponse });
+                        
+                        // 대화 기록 최대 50개로 제한
+                        if (conversationHistory.length > 50) {
+                            conversationHistory = conversationHistory.slice(-50);
+                        }
+                    }, 1000);
+                } catch (error) {
+                    console.error('AI 응답 생성 중 오류:', error);
+                    io.to('chat').emit('message', {
+                        username: 'System',
+                        content: 'AI 응답 생성 중 오류가 발생했습니다.',
+                        timestamp: new Date()
+                    });
+                }
             }
         } catch (error) {
-            console.error('AI 응답 생성 중 오류:', error);
-            socket.emit('messageError', { message: 'AI 응답 생성 중 오류가 발생했습니다.' });
+            console.error('메시지 처리 중 오류:', error);
         }
     });
 

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>실시간 채팅</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         :root {
             --primary-color: #4a90e2;
@@ -169,7 +170,6 @@
         </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         let currentUsername = '';
@@ -254,15 +254,46 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        document.getElementById('message-form').addEventListener('submit', (e) => {
+        // 채팅 메시지 표시 함수
+        function displayMessage(data) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            
+            // 시간 포맷팅
+            const timestamp = new Date(data.timestamp);
+            const timeString = timestamp.toLocaleTimeString('ko-KR');
+            
+            // 메시지 텍스트 디코딩
+            const decodedContent = decodeURIComponent(escape(data.content));
+            
+            messageDiv.innerHTML = `
+                <span class="username">${data.username}</span>
+                <span class="timestamp">(${timeString}): </span>
+                <span class="content">${decodedContent}</span>
+            `;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // 메시지 전송 처리
+        document.getElementById('message-form').onsubmit = (e) => {
             e.preventDefault();
             const messageInput = document.getElementById('message-input');
             const message = messageInput.value.trim();
             
-            if (message && !isAIUser) {
-                socket.emit('message', { content: message });
+            if (message) {
+                // 메시지 인코딩
+                const encodedMessage = unescape(encodeURIComponent(message));
+                socket.emit('chat_message', encodedMessage);
                 messageInput.value = '';
             }
+        };
+
+        // 서버로부터 메시지 수신
+        socket.on('chat_message', (data) => {
+            displayMessage(data);
         });
 
         // Enter 키로 메시지 전송 (AI 사용자가 아닌 경우에만)
