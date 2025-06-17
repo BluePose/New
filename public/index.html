@@ -268,7 +268,7 @@
         };
 
         // 서버로부터 메시지 수신
-        socket.on('chat_message', (data) => {
+        socket.on('message', (data) => {
             console.log('채팅 메시지 수신:', data);
             displayMessage(data);
         });

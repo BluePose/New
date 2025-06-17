@@ -161,14 +161,16 @@ AI 응답:`;
         const aiResponse = response.text();
         console.log('AI 원본 응답:', aiResponse);
 
-        // 이모티콘 제거 및 응답 정리
+        // 한글, 영어, 숫자, 기본 문장부호만 남기고 이모티콘 등만 제거
         const cleanResponse = aiResponse
-            .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2702}-\u{27B0}]|[\u{24C2}-\u{1F251}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F200}-\u{1F2FF}]|[\u{2100}-\u{214F}]/gu, '')
+            .replace(/[^\uAC00-\uD7A3\u3131-\u318E\u1100-\u11FFa-zA-Z0-9.,!?\s]/g, '')
             .trim();
 
-        // 응답 로그
-        console.log('정리된 AI 응답:', cleanResponse);
-        return cleanResponse;
+        // 응답이 너무 짧거나 비어 있으면 기본 안내 메시지로 대체
+        const finalResponse = cleanResponse.length < 2 ? '죄송합니다. 답변을 이해하지 못했습니다.' : cleanResponse;
+
+        console.log('정리된 AI 응답:', finalResponse);
+        return finalResponse;
     } catch (error) {
         console.error('AI 응답 생성 중 오류:', {
             message: error.message,
@@ -246,37 +248,34 @@ io.on('connection', (socket) => {
                     timestamp
                 });
 
-                // AI 응답 생성 및 전송
-                try {
-                    const aiResponse = await generateAIResponse(message, conversationHistory);
-
-                    // AI 응답 전송
-                    setTimeout(() => {
-                        const aiMessage = {
-                            username: '테스트 AI',
-                            content: aiResponse,
+                // AI 사용자가 채팅방에 있는지 확인
+                const aiUserExists = Array.from(users.values()).some(user => user.isAI);
+                if (aiUserExists) {
+                    // AI 응답 생성 및 전송
+                    try {
+                        const aiResponse = await generateAIResponse(message, conversationHistory);
+                        setTimeout(() => {
+                            const aiMessage = {
+                                username: '테스트 AI',
+                                content: aiResponse,
+                                timestamp: new Date()
+                            };
+                            io.to('chat').emit('message', aiMessage);
+                            console.log('AI 메시지 전송:', aiMessage);
+                            conversationHistory.push({ username: socket.username, content: message });
+                            conversationHistory.push({ username: '테스트 AI', content: aiResponse });
+                            if (conversationHistory.length > 50) {
+                                conversationHistory = conversationHistory.slice(-50);
+                            }
+                        }, 1000);
+                    } catch (error) {
+                        console.error('AI 응답 생성 중 오류:', error);
+                        io.to('chat').emit('message', {
+                            username: 'System',
+                            content: 'AI 응답 생성 중 오류가 발생했습니다.',
                             timestamp: new Date()
-                        };
-                        
-                        io.to('chat').emit('message', aiMessage);
-                        console.log('AI 메시지 전송:', aiMessage);
-                        
-                        // 대화 기록 업데이트
-                        conversationHistory.push({ username: socket.username, content: message });
-                        conversationHistory.push({ username: '테스트 AI', content: aiResponse });
-                        
-                        // 대화 기록 최대 50개로 제한
-                        if (conversationHistory.length > 50) {
-                            conversationHistory = conversationHistory.slice(-50);
-                        }
-                    }, 1000);
-                } catch (error) {
-                    console.error('AI 응답 생성 중 오류:', error);
-                    io.to('chat').emit('message', {
-                        username: 'System',
-                        content: 'AI 응답 생성 중 오류가 발생했습니다.',
-                        timestamp: new Date()
-                    });
+                        });
+                    }
                 }
             }
         } catch (error) {
