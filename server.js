@@ -3,79 +3,48 @@ const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
-const { Configuration, OpenAIApi } = require('openai');
+const path = require('path');
+const axios = require('axios');
 
-// OpenAI API 키 확인
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_API_KEY) {
-    console.error('OpenAI API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.');
-    process.exit(1);
-}
+// Hugging Face API 설정
+const HF_API_KEY = process.env.HF_API_KEY;
+const HF_API_URL = "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill";
 
-// OpenAI 설정
-const configuration = new Configuration({
-    apiKey: OPENAI_API_KEY
-});
-const openai = new OpenAIApi(configuration);
+// API 호출 함수
+async function generateAIResponse(message, context) {
+    try {
+        console.log('Hugging Face API 호출 시작:', {
+            message,
+            contextLength: context.length,
+            apiKey: HF_API_KEY ? '설정됨' : '설정되지 않음'
+        });
 
-// OpenAI API 연결 테스트
-async function testOpenAIConnection() {
-    const maxRetries = 3;
-    let retryCount = 0;
-
-    while (retryCount < maxRetries) {
-        try {
-            console.log(`OpenAI API 연결 테스트 시작... (시도 ${retryCount + 1}/${maxRetries})`);
-            console.log('사용 중인 API 키:', OPENAI_API_KEY.substring(0, 5) + '...');
-            
-            const completion = await openai.createChatCompletion({
-                model: "gpt-3.5-turbo",
-                messages: [
-                    {
-                        role: "system",
-                        content: "테스트 메시지입니다."
-                    }
-                ],
-                max_tokens: 5
-            });
-            
-            console.log('OpenAI API 응답:', completion.data);
-            console.log('OpenAI API 연결 테스트 성공!');
-            return true;
-        } catch (error) {
-            console.error(`OpenAI API 연결 테스트 실패 (시도 ${retryCount + 1}/${maxRetries}):`, error.message);
-            
-            if (error.response) {
-                console.error('API 응답:', error.response.data);
-                console.error('상태 코드:', error.response.status);
-                
-                // 429 에러인 경우에만 재시도
-                if (error.response.status === 429) {
-                    retryCount++;
-                    if (retryCount < maxRetries) {
-                        const delay = Math.pow(2, retryCount) * 1000; // 지수 백오프
-                        console.log(`${delay}ms 후 재시도...`);
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        continue;
-                    }
+        const response = await axios.post(
+            HF_API_URL,
+            {
+                inputs: {
+                    text: message
+                }
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${HF_API_KEY}`,
+                    'Content-Type': 'application/json'
                 }
             }
-            
-            return false;
-        }
-    }
-    
-    console.error('최대 재시도 횟수를 초과했습니다.');
-    return false;
-}
+        );
 
-// 서버 시작 시 API 연결 테스트
-testOpenAIConnection().then(success => {
-    if (!success) {
-        console.error('OpenAI API 연결에 실패했습니다. 서버를 종료합니다.');
-        process.exit(1);
+        console.log('Hugging Face API 응답 성공:', response.data);
+        return response.data.generated_text;
+    } catch (error) {
+        console.error('Hugging Face API 오류:', {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data
+        });
+        throw new Error(`AI 응답 생성 중 오류가 발생했습니다: ${error.message}`);
     }
-});
+}
 
 app.use(express.static('public'));
 
@@ -86,84 +55,24 @@ let aiUser = null;
 // 대화 컨텍스트 저장소
 const conversationContexts = new Map();
 
-// AI 응답 생성 함수
-async function generateAIResponse(message, context) {
-    const maxRetries = 3;
-    let retryCount = 0;
-
-    while (retryCount < maxRetries) {
-        try {
-            console.log(`OpenAI API 호출 시작 (시도 ${retryCount + 1}/${maxRetries}):`, {
-                message,
-                contextLength: context.length,
-                apiKey: OPENAI_API_KEY ? '설정됨' : '설정되지 않음'
-            });
-
-            const completion = await openai.createChatCompletion({
-                model: "gpt-3.5-turbo",
-                messages: [
-                    {
-                        role: "system",
-                        content: "당신은 친절하고 도움이 되는 AI 어시스턴트입니다. 사용자와 자연스러운 대화를 나누며, 이전 대화 내용을 기억하고 맥락에 맞는 응답을 제공합니다. 때로는 재미있고 유머러스한 대화를 나누기도 합니다."
-                    },
-                    ...context,
-                    {
-                        role: "user",
-                        content: message
-                    }
-                ],
-                temperature: 0.7,
-                max_tokens: 150,
-                presence_penalty: 0.6,
-                frequency_penalty: 0.3
-            });
-
-            const response = completion.data.choices[0].message.content;
-            console.log('OpenAI API 응답 성공:', response);
-            return response;
-        } catch (error) {
-            console.error(`OpenAI API 오류 (시도 ${retryCount + 1}/${maxRetries}):`, {
-                message: error.message,
-                status: error.response?.status,
-                data: error.response?.data
-            });
-
-            if (error.response?.status === 429) {
-                retryCount++;
-                if (retryCount < maxRetries) {
-                    const delay = Math.pow(2, retryCount) * 1000;
-                    console.log(`${delay}ms 후 재시도...`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    continue;
-                }
-            }
-
-            throw new Error(`OpenAI API 오류: ${error.message}`);
-        }
-    }
-    
-    throw new Error('최대 재시도 횟수를 초과했습니다.');
-}
-
 io.on('connection', (socket) => {
     console.log('새로운 사용자 연결:', socket.id);
 
-    socket.on('join', (username) => {
-        console.log('사용자 입장:', username, socket.id);
-        users.set(socket.id, username);
+    socket.on('join', async (data) => {
+        const { username, password } = data;
         
-        if (username !== 'AI') {
-            io.emit('chat message', {
-                type: 'system',
-                message: `${username}님이 입장하셨습니다.`
-            });
-        }
-        
-        io.emit('userCount', users.size);
-
-        // 새로운 사용자의 대화 컨텍스트 초기화
-        if (!conversationContexts.has(username)) {
-            conversationContexts.set(username, []);
+        if (password === '5001') {
+            console.log(`AI 사용자 참여: ${username}`);
+            users.set(socket.id, username);
+            socket.join('chat');
+            socket.emit('join_success', { username });
+            io.to('chat').emit('user_joined', { username });
+        } else {
+            console.log(`일반 사용자 참여: ${username}`);
+            users.set(socket.id, username);
+            socket.join('chat');
+            socket.emit('join_success', { username });
+            io.to('chat').emit('user_joined', { username });
         }
     });
 
@@ -264,5 +173,5 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
     console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
-    console.log('OpenAI API 키 상태:', OPENAI_API_KEY ? '설정됨' : '설정되지 않음');
+    console.log('Hugging Face API 키 상태:', HF_API_KEY ? '설정됨' : '설정되지 않음');
 }); 

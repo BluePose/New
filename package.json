@@ -1,15 +1,19 @@
 {
   "name": "chat-app",
   "version": "1.0.0",
-  "description": "실시간 채팅 애플리케이션",
+  "description": "Real-time chat application with AI integration",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "dependencies": {
-    "dotenv": "^16.5.0",
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.5",
     "express": "^4.18.2",
-    "openai": "^3.2.1",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.7.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
   }
 }
