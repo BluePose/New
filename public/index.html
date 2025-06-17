@@ -218,7 +218,6 @@
             try {
                 const messagesDiv = document.getElementById('messages');
                 const messageDiv = document.createElement('div');
-                messageDiv.className = 'message';
                 
                 // 시간 포맷팅
                 const timestamp = new Date(data.timestamp);
@@ -244,7 +243,12 @@
                 messagesDiv.appendChild(messageDiv);
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
                 
-                console.log('메시지 표시:', data);
+                console.log('메시지 표시:', {
+                    username: data.username,
+                    content: data.content,
+                    timestamp: timeString,
+                    class: messageClass
+                });
             } catch (error) {
                 console.error('메시지 표시 중 오류:', error);
             }
@@ -264,11 +268,6 @@
         };
 
         // 서버로부터 메시지 수신
-        socket.on('message', (data) => {
-            console.log('메시지 수신:', data);
-            displayMessage(data);
-        });
-        
         socket.on('chat_message', (data) => {
             console.log('채팅 메시지 수신:', data);
             displayMessage(data);

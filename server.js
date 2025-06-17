@@ -159,20 +159,20 @@ AI 응답:`;
 
         const response = await result.response;
         const aiResponse = response.text();
-        console.log('AI 원본 응답:', aiResponse);  // 디버깅을 위한 로그 추가
+        console.log('AI 원본 응답:', aiResponse);
 
-        // 응답에서 이모티콘 제거
-        const cleanResponse = aiResponse.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2702}-\u{27B0}]|[\u{24C2}-\u{1F251}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F200}-\u{1F2FF}]|[\u{2100}-\u{214F}]/gu, '')
+        // 이모티콘 제거 및 응답 정리
+        const cleanResponse = aiResponse
+            .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2702}-\u{27B0}]|[\u{24C2}-\u{1F251}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F200}-\u{1F2FF}]|[\u{2100}-\u{214F}]/gu, '')
             .trim();
 
-        console.log('Google AI API 응답 성공:', cleanResponse);
+        // 응답 로그
+        console.log('정리된 AI 응답:', cleanResponse);
         return cleanResponse;
     } catch (error) {
-        console.error('Google AI API 오류:', {
+        console.error('AI 응답 생성 중 오류:', {
             message: error.message,
-            stack: error.stack,
-            status: error.response?.status,
-            data: error.response?.data
+            stack: error.stack
         });
         throw new Error(`AI 응답 생성 중 오류가 발생했습니다: ${error.message}`);
     }
@@ -249,15 +249,17 @@ io.on('connection', (socket) => {
                 // AI 응답 생성 및 전송
                 try {
                     const aiResponse = await generateAIResponse(message, conversationHistory);
-                    console.log('AI 원본 응답:', aiResponse);
 
                     // AI 응답 전송
                     setTimeout(() => {
-                        io.to('chat').emit('message', {
+                        const aiMessage = {
                             username: '테스트 AI',
                             content: aiResponse,
                             timestamp: new Date()
-                        });
+                        };
+                        
+                        io.to('chat').emit('message', aiMessage);
+                        console.log('AI 메시지 전송:', aiMessage);
                         
                         // 대화 기록 업데이트
                         conversationHistory.push({ username: socket.username, content: message });
