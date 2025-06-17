@@ -6,4 +6,6 @@ services:
     startCommand: node server.js
     envVars:
       - key: NODE_ENV
-        value: production 
+        value: production
+      - key: HF_API_KEY
+        sync: false # API 키는 Render.com 대시보드에서 직접 설정 
