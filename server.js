@@ -135,7 +135,7 @@ async function generateAIResponse(message, context) {
         });
 
         // 대화 스타일 분석
-        const stylePrompt = analyzeConversationStyle(conversationHistory);
+        const stylePrompt = analyzeConversationStyle(context);
 
         // 프롬프트 구성
         const prompt = `${stylePrompt}
