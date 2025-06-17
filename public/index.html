@@ -173,6 +173,7 @@
     <script>
         const socket = io();
         let currentUsername = '';
+        let isAIUser = false;
 
         function joinChat() {
             const usernameInput = document.getElementById('username-input');
@@ -186,44 +187,42 @@
                 return;
             }
 
+            // AI 사용자 확인
+            isAIUser = username.toLowerCase().includes('ai');
+            if (isAIUser && !password) {
+                errorMessage.textContent = 'AI 사용자는 비밀번호를 입력해야 합니다.';
+                return;
+            }
+
             errorMessage.textContent = '';
-            socket.emit('join', { username, password });
+            socket.emit('join', { username, isAI: isAIUser, password });
         }
 
-        socket.on('join_success', (data) => {
-            currentUsername = data.username;
-            document.getElementById('login-form').style.display = 'none';
-            document.getElementById('chat-container').style.display = 'block';
-            document.getElementById('current-user').textContent = `현재 사용자: ${currentUsername}`;
-        });
-
-        socket.on('error', (data) => {
+        socket.on('joinError', (data) => {
             const errorMessage = document.getElementById('error-message');
             errorMessage.textContent = data.message;
         });
 
-        socket.on('user_joined', (data) => {
-            addMessage('System', `${data.username}님이 입장하셨습니다.`, 'system');
+        socket.on('messageError', (data) => {
+            addMessage('System', data.message, 'system');
         });
 
-        socket.on('user_left', (data) => {
-            addMessage('System', `${data.username}님이 퇴장하셨습니다.`, 'system');
+        socket.on('message', (data) => {
+            addMessage(data.username, data.content, data.username === 'System' ? 'system' : 
+                      data.username === currentUsername ? 'user' : 'ai');
         });
 
-        socket.on('user_list', (users) => {
+        socket.on('userList', (users) => {
             const userListElement = document.getElementById('user-list');
-            userListElement.textContent = `접속 중인 사용자: ${users.join(', ')}`;
+            userListElement.textContent = `접속 중인 사용자: ${users.map(u => u.username).join(', ')}`;
         });
 
-        socket.on('chat message', (data) => {
-            addMessage(data.username, data.message, data.type);
-        });
-
-        function addMessage(username, message, type) {
+        function addMessage(username, content, type) {
             const messagesDiv = document.getElementById('messages');
             const messageElement = document.createElement('div');
             messageElement.className = `message ${type}-message`;
-            messageElement.textContent = `${username}: ${message}`;
+            const timestamp = new Date().toLocaleTimeString();
+            messageElement.textContent = `${username} (${timestamp}): ${content}`;
             messagesDiv.appendChild(messageElement);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
@@ -233,15 +232,32 @@
             const messageInput = document.getElementById('message-input');
             const message = messageInput.value.trim();
             
-            if (message) {
-                socket.emit('chat message', { message });
+            if (message && !isAIUser) {
+                socket.emit('message', { content: message });
                 messageInput.value = '';
             }
         });
 
-        // Enter 키로 메시지 전송
+        // 로그인 성공 시 UI 업데이트
+        socket.on('join_success', (data) => {
+            currentUsername = data.username;
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'block';
+            document.getElementById('current-user').textContent = `현재 사용자: ${currentUsername}`;
+
+            // AI 사용자인 경우 메시지 입력 비활성화
+            if (isAIUser) {
+                const messageInput = document.getElementById('message-input');
+                const sendButton = document.querySelector('#message-form button');
+                messageInput.disabled = true;
+                sendButton.disabled = true;
+                messageInput.placeholder = 'AI 사용자는 메시지를 입력할 수 없습니다.';
+            }
+        });
+
+        // Enter 키로 메시지 전송 (AI 사용자가 아닌 경우에만)
         document.getElementById('message-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !isAIUser) {
                 e.preventDefault();
                 document.getElementById('message-form').dispatchEvent(new Event('submit'));
             }

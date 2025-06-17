@@ -59,8 +59,9 @@ const model = genAI.getGenerativeModel({
 // 포트 설정
 const PORT = process.env.PORT || 3000;
 
-// 사용자 관리
-const users = new Map(); // socket.id -> username 매핑
+// 사용자 관리를 위한 Map
+const users = new Map();
+const AI_PASSWORD = '5001';
 
 // Google AI API 연결 테스트
 async function testGoogleAIConnection() {
@@ -125,116 +126,73 @@ app.use(express.static('public'));
 const conversationContexts = new Map();
 
 io.on('connection', (socket) => {
-    console.log('새로운 사용자 연결:', socket.id);
+    console.log('새로운 사용자가 연결되었습니다.');
 
-    socket.on('join', async (data) => {
-        const { username, password } = data;
+    // 사용자 입장
+    socket.on('join', ({ username, isAI, password }) => {
+        // AI 사용자 검증
+        if (isAI && password !== AI_PASSWORD) {
+            socket.emit('joinError', { message: 'AI 사용자는 올바른 비밀번호를 입력해야 합니다.' });
+            return;
+        }
+
+        users.set(socket.id, { username, isAI });
+        socket.join('chat');
         
-        if (!username) {
-            console.error('사용자 이름이 제공되지 않음');
-            socket.emit('error', { message: '사용자 이름을 입력해주세요.' });
-            return;
-        }
+        // 입장 메시지 전송
+        io.to('chat').emit('message', {
+            username: 'System',
+            content: `${username}님이 입장하셨습니다.`,
+            timestamp: new Date().toLocaleTimeString()
+        });
 
-        // 이미 존재하는 사용자 이름인지 확인
-        const existingUser = Array.from(users.values()).find(name => name === username);
-        if (existingUser) {
-            console.error('이미 존재하는 사용자 이름:', username);
-            socket.emit('error', { message: '이미 사용 중인 이름입니다.' });
-            return;
-        }
-
-        if (password === '5001') {
-            console.log(`AI 사용자 참여: ${username}`);
-            users.set(socket.id, username);
-            socket.join('chat');
-            socket.emit('join_success', { username });
-            io.to('chat').emit('user_joined', { username });
-        } else {
-            console.log(`일반 사용자 참여: ${username}`);
-            users.set(socket.id, username);
-            socket.join('chat');
-            socket.emit('join_success', { username });
-            io.to('chat').emit('user_joined', { username });
-        }
-
-        // 새로운 사용자의 대화 컨텍스트 초기화
-        if (!conversationContexts.has(username)) {
-            conversationContexts.set(username, []);
-        }
-
-        // 현재 접속 중인 사용자 목록 전송
-        const userList = Array.from(users.values());
-        io.emit('user_list', userList);
+        // 사용자 목록 업데이트
+        io.to('chat').emit('userList', Array.from(users.values()));
     });
 
-    socket.on('chat message', async (data) => {
-        const username = users.get(socket.id);
-        if (!username) {
-            console.error('사용자 이름을 찾을 수 없음:', socket.id);
+    // 메시지 수신 및 전송
+    socket.on('message', async ({ content }) => {
+        const user = users.get(socket.id);
+        if (!user) return;
+
+        // AI 사용자는 메시지를 보낼 수 없음
+        if (user.isAI) {
+            socket.emit('messageError', { message: 'AI 사용자는 메시지를 보낼 수 없습니다.' });
             return;
         }
 
-        console.log('메시지 수신:', {
-            username,
-            message: data.message,
-            socketId: socket.id
+        // 일반 메시지 전송
+        io.to('chat').emit('message', {
+            username: user.username,
+            content,
+            timestamp: new Date().toLocaleTimeString()
         });
 
-        // 메시지 전송
-        io.emit('chat message', {
-            username,
-            message: data.message,
-            type: 'user'
-        });
-
-        // AI 응답 생성
+        // AI 응답 생성 및 전송
         try {
-            const context = conversationContexts.get(username) || [];
-            const aiResponse = await generateAIResponse(data.message, context);
-            
-            // 컨텍스트 업데이트
-            context.push(
-                { role: 'user', content: data.message },
-                { role: 'model', content: aiResponse }
-            );
-            // 컨텍스트 크기 제한 (최근 10개 메시지만 유지)
-            if (context.length > 20) {
-                context.splice(0, 2);
-            }
-            conversationContexts.set(username, context);
-
-            // AI 응답 전송
-            io.emit('chat message', {
-                username: 'AI',
-                message: aiResponse,
-                type: 'ai'
+            const aiResponse = await generateAIResponse(content, []);
+            io.to('chat').emit('message', {
+                username: users.get(Array.from(users.keys()).find(id => users.get(id).isAI))?.username || 'AI',
+                content: aiResponse,
+                timestamp: new Date().toLocaleTimeString()
             });
         } catch (error) {
-            console.error('AI 응답 생성 실패:', error);
-            io.emit('chat message', {
-                username: 'System',
-                message: 'AI 응답 생성 중 오류가 발생했습니다.',
-                type: 'system'
-            });
+            console.error('AI 응답 생성 중 오류:', error);
+            socket.emit('messageError', { message: 'AI 응답 생성 중 오류가 발생했습니다.' });
         }
     });
 
+    // 사용자 퇴장
     socket.on('disconnect', () => {
-        const username = users.get(socket.id);
-        if (username) {
-            console.log('사용자 퇴장:', username);
-            users.delete(socket.id);
-            io.emit('user_left', { username });
-            io.emit('chat message', {
+        const user = users.get(socket.id);
+        if (user) {
+            io.to('chat').emit('message', {
                 username: 'System',
-                message: `${username}님이 퇴장하셨습니다.`,
-                type: 'system'
+                content: `${user.username}님이 퇴장하셨습니다.`,
+                timestamp: new Date().toLocaleTimeString()
             });
-
-            // 현재 접속 중인 사용자 목록 전송
-            const userList = Array.from(users.values());
-            io.emit('user_list', userList);
+            users.delete(socket.id);
+            io.to('chat').emit('userList', Array.from(users.values()));
         }
     });
 });
