@@ -5,11 +5,51 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const { Configuration, OpenAIApi } = require('openai');
 
+// OpenAI API 키 확인
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if (!OPENAI_API_KEY) {
+    console.error('OpenAI API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.');
+    process.exit(1);
+}
+
 // OpenAI 설정
 const configuration = new Configuration({
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: OPENAI_API_KEY
 });
 const openai = new OpenAIApi(configuration);
+
+// OpenAI API 연결 테스트
+async function testOpenAIConnection() {
+    try {
+        console.log('OpenAI API 연결 테스트 시작...');
+        const completion = await openai.createChatCompletion({
+            model: "gpt-3.5-turbo",
+            messages: [
+                {
+                    role: "system",
+                    content: "테스트 메시지입니다."
+                }
+            ],
+            max_tokens: 5
+        });
+        console.log('OpenAI API 연결 테스트 성공!');
+        return true;
+    } catch (error) {
+        console.error('OpenAI API 연결 테스트 실패:', error.message);
+        if (error.response) {
+            console.error('API 응답:', error.response.data);
+        }
+        return false;
+    }
+}
+
+// 서버 시작 시 API 연결 테스트
+testOpenAIConnection().then(success => {
+    if (!success) {
+        console.error('OpenAI API 연결에 실패했습니다. 서버를 종료합니다.');
+        process.exit(1);
+    }
+});
 
 app.use(express.static('public'));
 
@@ -23,7 +63,12 @@ const conversationContexts = new Map();
 // AI 응답 생성 함수
 async function generateAIResponse(message, context) {
     try {
-        console.log('OpenAI API 호출 시작:', message); // 디버깅 로그
+        console.log('OpenAI API 호출 시작:', {
+            message,
+            contextLength: context.length,
+            apiKey: OPENAI_API_KEY ? '설정됨' : '설정되지 않음'
+        });
+
         const completion = await openai.createChatCompletion({
             model: "gpt-3.5-turbo",
             messages: [
@@ -44,11 +89,30 @@ async function generateAIResponse(message, context) {
         });
 
         const response = completion.data.choices[0].message.content;
-        console.log('OpenAI API 응답:', response); // 디버깅 로그
+        console.log('OpenAI API 응답 성공:', response);
         return response;
     } catch (error) {
-        console.error('OpenAI API 오류:', error);
-        throw error;
+        console.error('OpenAI API 오류 상세:', {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data,
+            stack: error.stack
+        });
+
+        // API 키 관련 오류
+        if (error.response?.status === 401) {
+            throw new Error('OpenAI API 키가 유효하지 않습니다. .env 파일의 API 키를 확인해주세요.');
+        }
+        // 할당량 초과 오류
+        if (error.response?.status === 429) {
+            throw new Error('OpenAI API 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+        }
+        // 모델 관련 오류
+        if (error.response?.status === 404) {
+            throw new Error('OpenAI 모델을 찾을 수 없습니다. 모델 이름을 확인해주세요.');
+        }
+
+        throw new Error(`OpenAI API 오류: ${error.message}`);
     }
 }
 
@@ -56,7 +120,7 @@ io.on('connection', (socket) => {
     console.log('새로운 사용자 연결:', socket.id);
 
     socket.on('join', (username) => {
-        console.log('사용자 입장:', username, socket.id); // 디버깅 로그
+        console.log('사용자 입장:', username, socket.id);
         users.set(socket.id, username);
         
         if (username !== 'AI') {
@@ -89,7 +153,7 @@ io.on('connection', (socket) => {
 
     socket.on('chat message', async (message) => {
         const username = users.get(socket.id);
-        console.log('메시지 수신:', username, message); // 디버깅 로그
+        console.log('메시지 수신:', { username, message, socketId: socket.id });
         
         if (!username) {
             console.error('사용자 이름을 찾을 수 없음:', socket.id);
@@ -105,15 +169,19 @@ io.on('connection', (socket) => {
 
         // AI가 있을 경우 응답 생성
         if (aiUser) {
-            console.log('AI 응답 생성 시작'); // 디버깅 로그
+            console.log('AI 응답 생성 시작');
             io.emit('ai_typing', true);
 
             try {
                 const context = conversationContexts.get(username) || [];
-                console.log('현재 대화 컨텍스트:', context); // 디버깅 로그
+                console.log('현재 대화 컨텍스트:', {
+                    username,
+                    contextLength: context.length,
+                    lastMessage: context[context.length - 1]
+                });
 
                 const aiResponse = await generateAIResponse(message, context);
-                console.log('AI 응답 생성 완료:', aiResponse); // 디버깅 로그
+                console.log('AI 응답 생성 완료:', aiResponse);
 
                 // 대화 컨텍스트 업데이트
                 context.push(
@@ -136,7 +204,7 @@ io.on('connection', (socket) => {
                 console.error('AI 응답 생성 중 오류:', error);
                 io.emit('chat message', {
                     type: 'system',
-                    message: 'AI 응답 생성 중 오류가 발생했습니다.'
+                    message: `AI 응답 생성 중 오류가 발생했습니다: ${error.message}`
                 });
             } finally {
                 io.emit('ai_typing', false);
@@ -146,7 +214,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         const username = users.get(socket.id);
-        console.log('사용자 퇴장:', username, socket.id); // 디버깅 로그
+        console.log('사용자 퇴장:', { username, socketId: socket.id });
 
         if (socket.id === aiUser) {
             aiUser = null;
@@ -167,4 +235,5 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
     console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
+    console.log('OpenAI API 키 상태:', OPENAI_API_KEY ? '설정됨' : '설정되지 않음');
 }); 
