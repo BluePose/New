@@ -95,22 +95,22 @@ const MAX_HISTORY_LENGTH = 50; // 최근 50개 메시지만 저장
 // 대화 스타일 분석 함수
 function analyzeConversationStyle(history) {
     // 대화 스타일 특성 추출
-    let stylePrompt = '';
-    if (history.length > 0) {
-        stylePrompt = `
-이전 대화에서 관찰된 대화 스타일:
-1. 사람들은 다음과 같은 방식으로 대화합니다:
-${history.filter(msg => !msg.isAI).map(msg => `- "${msg.content}"`).join('\n')}
-
-위 대화 스타일을 참고하여, 자연스럽고 인간다운 방식으로 대화해주세요.
+    let stylePrompt = `당신은 채팅방에서 사람들과 자연스럽게 대화하는 AI입니다.
 다음 규칙을 반드시 지켜주세요:
 1. 이모티콘을 사용하지 마세요.
 2. 존댓말을 사용하되, 너무 형식적이지 않게 대화하세요.
 3. 대화의 맥락을 이해하고 자연스럽게 참여하세요.
-4. 이전 대화에서 사용된 어투와 비슷한 스타일로 대화하세요.
+4. 간단명료하게 대화하세요.
+5. 질문에는 명확하게 답변하세요.\n\n`;
 
-사용자의 메시지: `;
+    if (history.length > 0) {
+        stylePrompt += `이전 대화 내용:
+${history.slice(-5).map(msg => `${msg.username}: ${msg.content}`).join('\n')}
+
+위 대화의 맥락을 파악하여 자연스럽게 대화를 이어가주세요.
+`;
     }
+
     return stylePrompt;
 }
 
@@ -126,14 +126,31 @@ async function generateAIResponse(message, context) {
         const stylePrompt = analyzeConversationStyle(conversationHistory);
 
         // 프롬프트 구성
-        const prompt = stylePrompt + message;
+        const prompt = `${stylePrompt}
 
-        const result = await model.generateContent(prompt);
+사용자 메시지: ${message}
+
+AI 응답:`;
+
+        // 생성 설정
+        const generationConfig = {
+            temperature: 0.8,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1000,
+        };
+
+        const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig,
+        });
+
         const response = await result.response;
         const aiResponse = response.text();
 
         // 응답에서 이모티콘 제거
-        const cleanResponse = aiResponse.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2702}-\u{27B0}]|[\u{24C2}-\u{1F251}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F200}-\u{1F2FF}]|[\u{2100}-\u{214F}]/gu, '');
+        const cleanResponse = aiResponse.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2702}-\u{27B0}]|[\u{24C2}-\u{1F251}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F200}-\u{1F2FF}]|[\u{2100}-\u{214F}]/gu, '')
+            .trim();
 
         console.log('Google AI API 응답 성공:', cleanResponse);
         return cleanResponse;

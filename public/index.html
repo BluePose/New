@@ -205,15 +205,23 @@
             
             document.getElementById('login-form').style.display = 'none';
             document.getElementById('chat-container').style.display = 'block';
-            document.getElementById('current-user').textContent = `현재 사용자: ${currentUsername}`;
+            document.getElementById('current-user').textContent = `현재 사용자: ${currentUsername}${isAIUser ? ' (AI)' : ''}`;
 
             // AI 사용자인 경우 메시지 입력 비활성화
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.querySelector('#message-form button');
             if (isAIUser) {
-                const messageInput = document.getElementById('message-input');
-                const sendButton = document.querySelector('#message-form button');
                 messageInput.disabled = true;
                 sendButton.disabled = true;
                 messageInput.placeholder = 'AI 사용자는 메시지를 입력할 수 없습니다.';
+                document.getElementById('message-form').style.pointerEvents = 'none';
+                messageInput.style.backgroundColor = '#f5f5f5';
+            } else {
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                messageInput.placeholder = '메시지를 입력하세요...';
+                document.getElementById('message-form').style.pointerEvents = 'auto';
+                messageInput.style.backgroundColor = '#ffffff';
             }
         });
 
