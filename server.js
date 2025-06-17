@@ -14,7 +14,7 @@ if (!GOOGLE_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
 // 포트 설정
 const PORT = process.env.PORT || 3000;
@@ -32,6 +32,7 @@ async function testGoogleAIConnection() {
         const result = await model.generateContent({
             contents: [{ role: "user", parts: [{ text: prompt }] }]
         });
+
         const response = await result.response;
         const text = response.text();
 
@@ -57,14 +58,27 @@ async function generateAIResponse(message, context) {
         });
 
         // 이전 대화 내용을 포함하여 프롬프트 생성
-        const chat = model.startChat({
-            history: context.map(msg => ({
-                role: msg.role === 'user' ? 'user' : 'model',
-                parts: [{ text: msg.content }]
-            }))
+        const messages = context.map(msg => ({
+            role: msg.role === 'user' ? 'user' : 'model',
+            parts: [{ text: msg.content }]
+        }));
+
+        // 현재 메시지 추가
+        messages.push({
+            role: 'user',
+            parts: [{ text: message }]
         });
 
-        const result = await chat.sendMessage(message);
+        const result = await model.generateContent({
+            contents: messages,
+            generationConfig: {
+                temperature: 0.7,
+                topK: 40,
+                topP: 0.95,
+                maxOutputTokens: 1024,
+            },
+        });
+
         const response = await result.response;
         const aiResponse = response.text();
 
