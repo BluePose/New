@@ -20,27 +20,53 @@ const openai = new OpenAIApi(configuration);
 
 // OpenAI API 연결 테스트
 async function testOpenAIConnection() {
-    try {
-        console.log('OpenAI API 연결 테스트 시작...');
-        const completion = await openai.createChatCompletion({
-            model: "gpt-3.5-turbo",
-            messages: [
-                {
-                    role: "system",
-                    content: "테스트 메시지입니다."
+    const maxRetries = 3;
+    let retryCount = 0;
+
+    while (retryCount < maxRetries) {
+        try {
+            console.log(`OpenAI API 연결 테스트 시작... (시도 ${retryCount + 1}/${maxRetries})`);
+            console.log('사용 중인 API 키:', OPENAI_API_KEY.substring(0, 5) + '...');
+            
+            const completion = await openai.createChatCompletion({
+                model: "gpt-3.5-turbo",
+                messages: [
+                    {
+                        role: "system",
+                        content: "테스트 메시지입니다."
+                    }
+                ],
+                max_tokens: 5
+            });
+            
+            console.log('OpenAI API 응답:', completion.data);
+            console.log('OpenAI API 연결 테스트 성공!');
+            return true;
+        } catch (error) {
+            console.error(`OpenAI API 연결 테스트 실패 (시도 ${retryCount + 1}/${maxRetries}):`, error.message);
+            
+            if (error.response) {
+                console.error('API 응답:', error.response.data);
+                console.error('상태 코드:', error.response.status);
+                
+                // 429 에러인 경우에만 재시도
+                if (error.response.status === 429) {
+                    retryCount++;
+                    if (retryCount < maxRetries) {
+                        const delay = Math.pow(2, retryCount) * 1000; // 지수 백오프
+                        console.log(`${delay}ms 후 재시도...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
                 }
-            ],
-            max_tokens: 5
-        });
-        console.log('OpenAI API 연결 테스트 성공!');
-        return true;
-    } catch (error) {
-        console.error('OpenAI API 연결 테스트 실패:', error.message);
-        if (error.response) {
-            console.error('API 응답:', error.response.data);
+            }
+            
+            return false;
         }
-        return false;
     }
+    
+    console.error('최대 재시도 횟수를 초과했습니다.');
+    return false;
 }
 
 // 서버 시작 시 API 연결 테스트
@@ -62,58 +88,61 @@ const conversationContexts = new Map();
 
 // AI 응답 생성 함수
 async function generateAIResponse(message, context) {
-    try {
-        console.log('OpenAI API 호출 시작:', {
-            message,
-            contextLength: context.length,
-            apiKey: OPENAI_API_KEY ? '설정됨' : '설정되지 않음'
-        });
+    const maxRetries = 3;
+    let retryCount = 0;
 
-        const completion = await openai.createChatCompletion({
-            model: "gpt-3.5-turbo",
-            messages: [
-                {
-                    role: "system",
-                    content: "당신은 친절하고 도움이 되는 AI 어시스턴트입니다. 사용자와 자연스러운 대화를 나누며, 이전 대화 내용을 기억하고 맥락에 맞는 응답을 제공합니다. 때로는 재미있고 유머러스한 대화를 나누기도 합니다."
-                },
-                ...context,
-                {
-                    role: "user",
-                    content: message
+    while (retryCount < maxRetries) {
+        try {
+            console.log(`OpenAI API 호출 시작 (시도 ${retryCount + 1}/${maxRetries}):`, {
+                message,
+                contextLength: context.length,
+                apiKey: OPENAI_API_KEY ? '설정됨' : '설정되지 않음'
+            });
+
+            const completion = await openai.createChatCompletion({
+                model: "gpt-3.5-turbo",
+                messages: [
+                    {
+                        role: "system",
+                        content: "당신은 친절하고 도움이 되는 AI 어시스턴트입니다. 사용자와 자연스러운 대화를 나누며, 이전 대화 내용을 기억하고 맥락에 맞는 응답을 제공합니다. 때로는 재미있고 유머러스한 대화를 나누기도 합니다."
+                    },
+                    ...context,
+                    {
+                        role: "user",
+                        content: message
+                    }
+                ],
+                temperature: 0.7,
+                max_tokens: 150,
+                presence_penalty: 0.6,
+                frequency_penalty: 0.3
+            });
+
+            const response = completion.data.choices[0].message.content;
+            console.log('OpenAI API 응답 성공:', response);
+            return response;
+        } catch (error) {
+            console.error(`OpenAI API 오류 (시도 ${retryCount + 1}/${maxRetries}):`, {
+                message: error.message,
+                status: error.response?.status,
+                data: error.response?.data
+            });
+
+            if (error.response?.status === 429) {
+                retryCount++;
+                if (retryCount < maxRetries) {
+                    const delay = Math.pow(2, retryCount) * 1000;
+                    console.log(`${delay}ms 후 재시도...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
                 }
-            ],
-            temperature: 0.7,
-            max_tokens: 150,
-            presence_penalty: 0.6,
-            frequency_penalty: 0.3
-        });
+            }
 
-        const response = completion.data.choices[0].message.content;
-        console.log('OpenAI API 응답 성공:', response);
-        return response;
-    } catch (error) {
-        console.error('OpenAI API 오류 상세:', {
-            message: error.message,
-            status: error.response?.status,
-            data: error.response?.data,
-            stack: error.stack
-        });
-
-        // API 키 관련 오류
-        if (error.response?.status === 401) {
-            throw new Error('OpenAI API 키가 유효하지 않습니다. .env 파일의 API 키를 확인해주세요.');
+            throw new Error(`OpenAI API 오류: ${error.message}`);
         }
-        // 할당량 초과 오류
-        if (error.response?.status === 429) {
-            throw new Error('OpenAI API 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.');
-        }
-        // 모델 관련 오류
-        if (error.response?.status === 404) {
-            throw new Error('OpenAI 모델을 찾을 수 없습니다. 모델 이름을 확인해주세요.');
-        }
-
-        throw new Error(`OpenAI API 오류: ${error.message}`);
     }
+    
+    throw new Error('최대 재시도 횟수를 초과했습니다.');
 }
 
 io.on('connection', (socket) => {
