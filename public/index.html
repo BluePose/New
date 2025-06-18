@@ -170,7 +170,6 @@
         <h2>채팅 입장</h2>
         <input type="text" id="username-input" placeholder="사용자 이름">
         <input type="password" id="password-input" placeholder="AI 사용자 비밀번호 (선택사항)">
-        <label><input type="checkbox" id="isAIUser">AI 사용자</label>
         <button onclick="joinChat()">입장하기</button>
         <p id="error-message" style="color: red;"></p>
     </div>
@@ -186,10 +185,20 @@
         </form>
     </div>
 
+    <div id="persona-modal" style="display:none; position:fixed; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.3); z-index:1000; justify-content:center; align-items:center;">
+        <div style="background:white; padding:30px; border-radius:10px; min-width:300px; text-align:center;">
+            <h3>AI 페르소나 입력</h3>
+            <input type="text" id="persona-input" placeholder="AI의 페르소나(성격, 말투, 취미 등) 입력 (선택)" style="width:90%; padding:10px; margin-bottom:15px;">
+            <br>
+            <button id="persona-done-btn">완료</button>
+        </div>
+    </div>
+
     <script>
         const socket = io();
         let currentUsername = '';
         let isAIUser = false;
+        let pendingJoinData = null;
 
         function joinChat() {
             const usernameInput = document.getElementById('username-input');
@@ -203,16 +212,30 @@
                 return;
             }
 
-            // 비밀번호가 5001이면 대화명과 상관없이 AI 사용자로 처리
-            isAIUser = (password === '5001');
-            if (isAIUser && !password) {
-                errorMessage.textContent = 'AI 사용자는 비밀번호를 입력해야 합니다.';
+            // AI 사용자: 비밀번호가 5001일 때만
+            if (password === '5001') {
+                // 페르소나 입력 모달 띄우기
+                pendingJoinData = { username, isAI: true, password };
+                document.getElementById('persona-modal').style.display = 'flex';
+                document.getElementById('persona-input').value = '';
                 return;
             }
 
+            // 일반 사용자: 바로 입장
             errorMessage.textContent = '';
-            socket.emit('join', { username, isAI: isAIUser, password });
+            socket.emit('join', { username, isAI: false, password });
         }
+
+        // 페르소나 입력 후 '완료' 버튼 클릭 시
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('persona-done-btn').onclick = function() {
+                if (!pendingJoinData) return;
+                const persona = document.getElementById('persona-input').value.trim();
+                document.getElementById('persona-modal').style.display = 'none';
+                socket.emit('join', { ...pendingJoinData, persona });
+                pendingJoinData = null;
+            };
+        });
 
         // 채팅 메시지 표시 함수
         function displayMessage(data) {
