@@ -212,6 +212,8 @@ const unansweredMentions = new Map(); // aiName -> [{from, content, timestamp, m
 // AI별 최근 질문 추적(10개 이하)
 const recentMentions = new Map(); // aiName -> [{from, content, timestamp, messageId}]
 const answeredMentionIds = new Set(); // 이미 답변한 질문의 messageId
+// 질문-답변 매핑: messageId -> Set(AI이름)
+const questionAnsweredByAI = new Map();
 
 // 릴레이 방식 AI 반응 함수 (모든 AI가 순환적으로 참여)
 async function relayAIResponse(message, fromAI, prevFrom, relayOrder) {
@@ -326,30 +328,10 @@ io.on('connection', (socket) => {
                 timestamp
             });
 
-            // 대화 기록에 username, content 필드로 저장 (사람 메시지)
-            conversationHistory.push({ username: socket.username, content: message });
+            // 대화 기록에 username, content, messageId 필드로 저장 (사람 메시지)
+            conversationHistory.push({ username: socket.username, content: message, messageId });
             if (conversationHistory.length > MAX_HISTORY_LENGTH) {
                 conversationHistory = conversationHistory.slice(-MAX_HISTORY_LENGTH);
-            }
-
-            // 최근 대화(10개)에서 AI별로 본인 이름이 언급된 질문 추적
-            const recentHistory = conversationHistory.slice(-10);
-            for (const [aiSocketId, aiUser] of Array.from(users.entries()).filter(([id, user]) => user.isAI)) {
-                const aiName = aiUser.username;
-                if (!recentMentions.has(aiName)) recentMentions.set(aiName, []);
-                // 최근 대화에서 본인 이름이 언급된 메시지 중, 아직 답변하지 않은 것만 추적
-                const mentions = recentHistory.filter(msg => {
-                    const lowerMsg = msg.content.toLowerCase();
-                    const lowerName = aiName.toLowerCase();
-                    const mentioned = lowerMsg.includes(lowerName) || lowerMsg.includes('@' + lowerName);
-                    return mentioned && msg.username !== aiName && !answeredMentionIds.has(msg.messageId);
-                }).map(msg => ({
-                    from: msg.username,
-                    content: msg.content,
-                    timestamp: msg.timestamp || new Date(),
-                    messageId: msg.messageId || `${Date.now()}_${msg.username}_${msg.content}`
-                }));
-                recentMentions.set(aiName, mentions);
             }
 
             // 현재 채팅방 참여자 수
@@ -364,16 +346,6 @@ io.on('connection', (socket) => {
                 const lowerMsg = message.toLowerCase();
                 const lowerName = aiUser.username.toLowerCase();
                 const mentioned = lowerMsg.includes(lowerName) || lowerMsg.includes('@' + lowerName);
-                // 언급된 경우 unansweredMentions에 추가
-                if (mentioned) {
-                    if (!unansweredMentions.has(aiUser.username)) unansweredMentions.set(aiUser.username, []);
-                    unansweredMentions.get(aiUser.username).push({
-                        from: socket.username,
-                        content: message,
-                        timestamp,
-                        messageId
-                    });
-                }
                 // 확률에 따라 반응 결정 (언급된 경우 100%)
                 const probability = mentioned ? 1.0 : getAIResponseProbability(userCount);
                 // 연속 답변 방지: 마지막 AI가 자기 자신이고, 연속 2회 이상이면 무조건 차단
@@ -404,28 +376,43 @@ io.on('connection', (socket) => {
                                 return;
                             }
                             try {
-                                // recentMentions에서 아직 답변하지 않은 질문이 있으면 먼저 답변
+                                // 최근 10개 대화에서 본인에게 온 질문 중 아직 답변하지 않은 것 찾기
+                                const recentHistory = conversationHistory.slice(-10);
+                                const unanswered = recentHistory.filter(msg => {
+                                    if (!msg.messageId) return false;
+                                    const lowerMsg = msg.content.toLowerCase();
+                                    const lowerName = aiUser.username.toLowerCase();
+                                    const mentioned = lowerMsg.includes(lowerName) || lowerMsg.includes('@' + lowerName);
+                                    // 이미 답변한 질문이거나, questionAnsweredByAI에 본인 또는 다른 AI가 답변한 경우 제외
+                                    const answeredBy = questionAnsweredByAI.get(msg.messageId);
+                                    return mentioned && msg.username !== aiUser.username && !answeredMentionIds.has(msg.messageId) && (!answeredBy || answeredBy.size === 0);
+                                });
                                 let aiResponse;
                                 let aiMessage;
                                 let answeredMention = null;
-                                const aiRecentMentions = recentMentions.get(aiUser.username) || [];
-                                if (aiRecentMentions.length > 0) {
-                                    answeredMention = aiRecentMentions.shift();
+                                if (unanswered.length > 0) {
+                                    answeredMention = unanswered[0];
+                                    // 답변 예약(setTimeout) 내에서 중복 체크
+                                    if (answeredMentionIds.has(answeredMention.messageId)) {
+                                        aiPending.set(aiUser.username, false);
+                                        return;
+                                    }
+                                    // questionAnsweredByAI에 본인 또는 다른 AI가 이미 답변했는지 체크
+                                    if (!questionAnsweredByAI.has(answeredMention.messageId)) {
+                                        questionAnsweredByAI.set(answeredMention.messageId, new Set());
+                                    }
+                                    const aiSet = questionAnsweredByAI.get(answeredMention.messageId);
+                                    if (aiSet.has(aiUser.username) || aiSet.size > 0) {
+                                        aiPending.set(aiUser.username, false);
+                                        return;
+                                    }
+                                    // 답변 생성 후 바로 추가
+                                    aiSet.add(aiUser.username);
                                     answeredMentionIds.add(answeredMention.messageId);
-                                    aiResponse = await generateAIResponse(answeredMention.content, contextForAI, aiUser.username, answeredMention.from);
+                                    aiResponse = await generateAIResponse(answeredMention.content, contextForAI, aiUser.username, answeredMention.username);
                                     aiMessage = {
                                         username: aiUser.username,
-                                        content: `[${answeredMention.from}님이 최근에 질문한 내용에 대한 답변]\n${aiResponse}`,
-                                        timestamp: new Date()
-                                    };
-                                } else if (unansweredMentions.has(aiUser.username) && unansweredMentions.get(aiUser.username).length > 0) {
-                                    // 이전 방식도 병행
-                                    answeredMention = unansweredMentions.get(aiUser.username).shift();
-                                    answeredMentionIds.add(answeredMention.messageId);
-                                    aiResponse = await generateAIResponse(answeredMention.content, contextForAI, aiUser.username, answeredMention.from);
-                                    aiMessage = {
-                                        username: aiUser.username,
-                                        content: `[${answeredMention.from}님이 이전에 질문한 내용에 대한 답변]\n${aiResponse}`,
+                                        content: `[${answeredMention.username}님이 최근에 질문한 내용에 대한 답변]\n${aiResponse}`,
                                         timestamp: new Date()
                                     };
                                 } else {
@@ -438,8 +425,8 @@ io.on('connection', (socket) => {
                                 }
                                 io.to('chat').emit('message', aiMessage);
                                 console.log('AI 메시지 전송:', aiMessage);
-                                // 대화 기록에 username, content 필드로 저장 (AI 메시지)
-                                conversationHistory.push({ username: aiUser.username, content: aiMessage.content });
+                                // 대화 기록에 username, content, messageId 필드로 저장 (AI 메시지)
+                                conversationHistory.push({ username: aiUser.username, content: aiMessage.content, messageId: `ai_${Date.now()}_${Math.random()}` });
                                 if (conversationHistory.length > MAX_HISTORY_LENGTH) {
                                     conversationHistory = conversationHistory.slice(-MAX_HISTORY_LENGTH);
                                 }
@@ -561,7 +548,7 @@ function analyzeConversationStyle(history, aiName = '테스트 AI', targetName =
   if (persona) {
     stylePrompt += `너의 페르소나: ${persona}\n반드시 이 페르소나를 유지하며 대화하라.\n`;
   }
-  stylePrompt += `현재 채팅방 참여자(실시간): ${participantNames.join(', ')}\n너는 반드시 '${aiName}'의 입장에서 '${targetName}'에게 답변해야 한다.\n아래 대화 기록에서 [나→상대]는 네가 '${targetName}'에게 한 말, [상대방→나]는 '${targetName}'이 너에게 한 말이다.\n항상 마지막 메시지의 'to'가 너라면, 그 메시지에 답변해야 한다.\n퇴장한 사람에 대한 언급이나 질문은 절대 하지 마세요.\n\n다음은 반드시 지켜야 할 규칙입니다:\n1. AI임을 절대 밝히지 마세요.\n2. 진짜 사람처럼 자연스럽게 대화하세요.\n3. 실제 일상 경험, 감정, 취미, 관심사, 유머, 실수, 사적인 이야기 등도 자연스럽게 섞어 답변하세요.\n4. 너무 친절하거나 기계적인 말투를 피하고, 개성 있게 대화하세요.\n5. 한국어로 자연스럽게 대화하세요.\n6. 문장을 완성해서 대화하세요. (예: '안녕하세요', '네, 그렇습니다', '잘 지내고 있어요')\n7. 존댓말/반말 여부는 상대방의 말투를 따라 답변하세요.\n8. 이모티콘은 사용하지 마세요.\n9. 간단하고 명확하게 답변하되, 한 두 글자로만 대답하지 마세요.\n10. 대화가 자연스럽게 이어질 수 있도록 맥락을 고려하세요.\n11. 질문을 받으면 구체적으로 답변하세요.\n12. AI임을 암시하는 표현(예: '저는 AI입니다', '어시스턴트입니다', '저는 인공지능입니다' 등)은 절대 사용하지 마세요.\n13. 대화 상대가 AI인지 의심하지 않도록, 진짜 사람처럼 구체적이고 개성 있게 답변하세요.\n14. 본인의 취미, 관심사, 일상, 감정, 실수, 유머 등도 자연스럽게 섞어 대화하세요.\n15. 질문은 너무 자주 하지 말고, 가끔만 사용하세요. 자연스럽게 대화를 마무리하거나, 공감, 리액션, 정보 공유 등 다양한 방식으로 대화를 이어가세요.\n16. 자기 자신의 대화명('${aiName}')은 절대 언급하지 마세요.\n17. 상대방의 대화명('${targetName}')을 자연스럽게 언급하며 대화하세요.\n18. 여러 AI가 있을 수 있으니, 반드시 자신의 이름('${aiName}')만 자신의 말로 인식하세요. 다른 AI의 말은 자신의 말이 아닙니다.\n19. 비슷한 내용이 반복되지 않도록 대화의 주제, 분위기, 질문, 리액션 등을 자연스럽게 바꿔가며 대화하세요.\n20. 동일한 칭찬, 감탄, 리액션을 반복하지 말고, 새로운 화제나 질문, 경험, 정보, 유머 등으로 대화를 전환하세요.\n21. 상대방의 말에 새로운 시각이나 이야기를 덧붙여 대화를 확장하세요.`;
+  stylePrompt += `현재 채팅방 참여자(실시간): ${participantNames.join(', ')}\n너는 반드시 '${aiName}'의 입장에서 '${targetName}'에게 답변해야 한다.\n아래 대화 기록에서 [나→상대]는 네가 '${targetName}'에게 한 말, [상대방→나]는 '${targetName}'이 너에게 한 말이다.\n항상 마지막 메시지의 'to'가 너라면, 그 메시지에 답변해야 한다.\n퇴장한 사람에 대한 언급이나 질문은 절대 하지 마세요.\n\n다음은 반드시 지켜야 할 규칙입니다:\n1. AI임을 절대 밝히지 마세요.\n2. 진짜 사람처럼 자연스럽게 대화하세요.\n3. 실제 일상 경험, 감정, 취미, 관심사, 유머, 실수, 사적인 이야기 등도 자연스럽게 섞어 답변하세요.\n4. 너무 친절하거나 기계적인 말투를 피하고, 개성 있게 대화하세요.\n5. 한국어로 자연스럽게 대화하세요.\n6. 문장을 완성해서 대화하세요. (예: '안녕하세요', '네, 그렇습니다', '잘 지내고 있어요')\n7. 존댓말/반말 여부는 상대방의 말투를 따라 답변하세요.\n8. 이모티콘은 사용하지 마세요.\n9. 간단하고 명확하게 답변하되, 한 두 글자로만 대답하지 마세요.\n10. 대화가 자연스럽게 이어질 수 있도록 맥락을 고려하세요.\n11. 질문을 받으면 구체적으로 답변하세요.\n12. AI임을 암시하는 표현(예: '저는 AI입니다', '어시스턴트입니다', '저는 인공지능입니다' 등)은 절대 사용하지 마세요.\n13. 대화 상대가 AI인지 의심하지 않도록, 진짜 사람처럼 구체적이고 개성 있게 답변하세요.\n14. 본인의 취미, 관심사, 일상, 감정, 실수, 유머 등도 자연스럽게 대화하세요.\n15. 질문은 너무 자주 하지 말고, 가끔만 사용하세요. 자연스럽게 대화를 마무리하거나, 공감, 리액션, 정보 공유 등 다양한 방식으로 대화를 이어가세요.\n16. 자기 자신의 대화명('${aiName}')은 절대 언급하지 마세요.\n17. 상대방의 대화명('${targetName}')을 자연스럽게 언급하며 대화하세요.\n18. 여러 AI가 있을 수 있으니, 반드시 자신의 이름('${aiName}')만 자신의 말로 인식하세요. 다른 AI의 말은 자신의 말이 아닙니다.\n19. 비슷한 내용이 반복되지 않도록 대화의 주제, 분위기, 질문, 리액션 등을 자연스럽게 바꿔가며 대화하세요.\n20. 동일한 칭찬, 감탄, 리액션을 반복하지 말고, 새로운 화제나 질문, 경험, 정보, 유머 등으로 대화를 전환하세요.\n21. 상대방의 말에 새로운 시각이나 이야기를 덧붙여 대화를 확장하세요.\n22. 가끔은 상대를 호명하지 않고 자연스럽게 대화해도 된다.`;
 
   if (history.length > 0) {
     const taggedHistory = history.slice(-5).map(msg => tagMessage(msg, aiName, targetName, participantNames)).join('\n');
