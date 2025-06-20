@@ -194,6 +194,7 @@
             <h3>AI 페르소나 입력</h3>
             <input type="text" id="persona-input" placeholder="AI의 페르소나(성격, 말투, 취미 등) 입력 (선택)" style="width:90%; padding:10px; margin-bottom:15px;">
             <br>
+            <button id="persona-random-btn" style="margin-right:10px;">랜덤 생성</button>
             <button id="persona-done-btn">완료</button>
         </div>
     </div>
@@ -239,6 +240,23 @@
                 socket.emit('join', { ...pendingJoinData, persona });
                 pendingJoinData = null;
             };
+            // 랜덤 생성 버튼 클릭 시 랜덤 페르소나 부여
+            document.getElementById('persona-random-btn').onclick = function() {
+                const personaPool = [
+                    '쾌활하고 수다스러운 20대 대학생, 농담을 자주 함',
+                    '차분하고 논리적인 30대 직장인, 정보 전달을 좋아함',
+                    '감성적이고 공감 잘하는 40대, 리액션이 풍부함',
+                    '냉정하고 직설적인 성격, 짧고 단호한 답변을 선호함',
+                    '호기심 많고 질문을 자주 하는 어린이',
+                    '유머러스하고 장난기 많은 친구',
+                    '진지하고 분석적인 전문가',
+                    '느긋하고 여유로운 여행가',
+                    '트렌디하고 패션에 관심 많은 인플루언서',
+                    '책임감 강한 리더형',
+                ];
+                const randomPersona = personaPool[Math.floor(Math.random() * personaPool.length)];
+                document.getElementById('persona-input').value = randomPersona;
+            };
         });
 
         // 채팅 메시지 표시 함수
@@ -253,17 +271,19 @@
                 
                 // 메시지 타입에 따른 스타일 지정
                 let messageClass = 'other-message';
-                if (data.username === 'System') {
+                // 대화명 판별: data.from 우선, 없으면 data.username
+                const displayName = data.from || data.username || 'undefined';
+                if (displayName === 'System') {
                     messageClass = 'system-message';
-                } else if (data.username === currentUsername) {
+                } else if (displayName === currentUsername) {
                     messageClass = 'user-message';
-                } else if (data.username === '테스트 AI') {
+                } else if (displayName.startsWith('AI')) {
                     messageClass = 'ai-message';
                 }
                 
                 messageDiv.className = `message ${messageClass}`;
                 messageDiv.innerHTML = `
-                    <span class="username">${data.username}</span>
+                    <span class="username">${displayName}</span>
                     <span class="timestamp">(${timeString})</span>
                     <span class="content">${data.content}</span>
                 `;
@@ -277,7 +297,7 @@
                 }
                 
                 console.log('메시지 표시:', {
-                    username: data.username,
+                    username: displayName,
                     content: data.content,
                     timestamp: timeString,
                     class: messageClass
