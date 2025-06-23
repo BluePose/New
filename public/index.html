@@ -167,6 +167,109 @@
                 max-width: 90%;
             }
         }
+
+        /* 메시지 스타일 통일 - 사람과 AI 구분 불가능하게 */
+        .message {
+            margin: 10px 0;
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 70%;
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .user-message, .ai-message, .other-message {
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            margin-left: auto;
+            margin-right: 10px;
+        }
+
+        .system-message {
+            background-color: #e3f2fd;
+            color: #1976d2;
+            text-align: center;
+            margin: 10px auto;
+            font-style: italic;
+            font-size: 0.9em;
+        }
+
+        .username {
+            font-weight: bold;
+            color: #1976d2;
+            margin-right: 8px;
+        }
+
+        .timestamp {
+            font-size: 0.8em;
+            color: #666;
+            margin-right: 8px;
+        }
+
+        .content {
+            display: block;
+            margin-top: 5px;
+        }
+
+        /* 채팅 컨테이너 스타일 */
+        #chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 80vh;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #chat-header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: white;
+        }
+
+        #message-form {
+            display: flex;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-top: 1px solid var(--border-color);
+        }
+
+        #message-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+
+        #message-form button {
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        #message-form button:hover {
+            background-color: #1976d2;
+        }
+
+        #message-form button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -260,6 +363,11 @@
         });
 
         // 채팅 메시지 표시 함수
+        function escapeHTML(str) {
+            return (str || '').replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[tag]));
+        }
         function displayMessage(data) {
             try {
                 const messagesDiv = document.getElementById('messages');
@@ -282,10 +390,12 @@
                 }
                 
                 messageDiv.className = `message ${messageClass}`;
+                // 줄바꿈(\n)을 <br>로 변환, XSS 방지
+                const safeContent = escapeHTML(data.content || '').replace(/\n/g, '<br>');
                 messageDiv.innerHTML = `
                     <span class="username">${displayName}</span>
                     <span class="timestamp">(${timeString})</span>
-                    <span class="content">${data.content}</span>
+                    <span class="content">${safeContent}</span>
                 `;
                 
                 messagesDiv.appendChild(messageDiv);
