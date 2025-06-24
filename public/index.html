@@ -6,464 +6,524 @@
     <title>채팅 애플리케이션</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root {
-            --primary-color: #4a90e2;
-            --secondary-color: #f5f6fa;
-            --text-color: #2c3e50;
-            --border-color: #e1e1e1;
-            --success-color: #2ecc71;
-            --error-color: #e74c3c;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            --body-bg: #f4f7f9;
+            --chat-bg: #ffffff;
+            --border-color: #e0e4e8;
+            --input-bg: #ffffff;
+            --text-dark: #333333;
+            --text-light: #777777;
+            --my-message-bg: #e1ffc7;
+            --other-message-bg: #f1f1f1;
+            --system-message-color: #888888;
+            --font-family: 'Noto Sans KR', sans-serif;
         }
 
         body {
-            font-family: 'Noto Sans KR', sans-serif;
-            background-color: var(--secondary-color);
-            color: var(--text-color);
-            line-height: 1.6;
+            font-family: var(--font-family);
+            background-color: var(--body-bg);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: var(--text-dark);
         }
 
-        .container {
-            max-width: 800px;
+        .container-wrapper {
             width: 100%;
-            margin: 0 auto;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            padding: 20px;
+            max-width: 650px; /* Increased width for better readability */
+            height: 95vh;
+            max-height: 900px; /* Increased height */
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.1);
+            border-radius: 16px; /* Smoother corners */
+            overflow: hidden;
+            background-color: var(--chat-bg);
         }
 
-        #login-form {
+        #chat-container, #login-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #login-container {
+            justify-content: center;
+            padding: 40px;
+            box-sizing: border-box;
+        }
+        #login-container h1 {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            color: var(--text-dark);
+        }
+        #login-container input {
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+        #login-container button {
+            width: 100%;
+            padding: 12px;
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        #login-container button:hover {
+            background-color: #357abd;
+        }
+        #error-message {
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 15px;
+            min-height: 1.2em;
+        }
+        
+        /* 페르소나 설정 컨테이너 (기존 UI 완벽 복원) */
+        #persona-container {
+            display: none;
+            flex-direction: column;
+            padding: 40px;
+            box-sizing: border-box;
+            justify-content: center;
+        }
+        #persona-container h1 {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        #persona-container input {
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+        #persona-buttons {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+        #persona-container button {
+            flex-grow: 1;
+            padding: 12px;
+            font-size: 1em;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        #random-persona-btn, #set-persona-btn {
+            background-color: #4a90e2; /* 로그인 버튼과 동일한 색으로 통일 */
+            color: white;
+        }
+        #random-persona-btn:hover, #set-persona-btn:hover {
+            background-color: #357abd; /* 호버 색상도 통일 */
         }
 
         #chat-container {
+            background-color: var(--chat-bg);
+            overflow: hidden;
+        }
+        
+        #chat-header {
+            padding: 16px;
+            background-color: #f7f7f7;
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+            font-weight: 500;
+            font-size: 1.1em;
+            color: #555;
+            flex-shrink: 0;
+        }
+
+        #messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px; /* Increased gap */
+            background-color: #b2c7d9; /* KakaoTalk-like background */
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 80%; /* Slightly increased max-width */
+            position: relative;
+        }
+        
+        .message-body {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .message-bubble {
+            padding: 10px 15px;
+            border-radius: 18px;
+            line-height: 1.6;
+            position: relative;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        }
+        
+        .message-from {
+            font-size: 0.85em;
+            font-weight: 500;
+            color: #444;
+            margin-bottom: 5px;
+            padding: 0 5px;
+        }
+        
+        .message-content {
+            white-space: pre-wrap; /* Preserve whitespace and newlines */
+            word-wrap: break-word;
+        }
+
+        .message-timestamp {
+            font-size: 0.7em;
+            color: var(--text-light);
+            flex-shrink: 0; /* Prevent timestamp from shrinking */
+        }
+
+        /* My messages */
+        .message.mine {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+        .message.mine .message-body {
+            flex-direction: row-reverse;
+        }
+        .message.mine .message-bubble {
+            background-color: #ffeb3b; /* KakaoTalk yellow */
+            color: #3c1e1e;
+            border-bottom-right-radius: 4px;
+        }
+
+        /* Other user's messages */
+        .message:not(.mine):not(.system) {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+        .message:not(.mine):not(.system) .message-bubble {
+            background-color: var(--other-message-bg);
+            border-bottom-left-radius: 4px;
+        }
+        
+        /* System messages */
+        .message.system {
+            align-self: center;
+            text-align: center;
+            width: 100%;
+            max-width: 100%;
+        }
+        .message.system .message-content {
+            font-style: italic;
+            color: var(--system-message-color);
+            font-size: 0.9em;
+        }
+        .message.system .message-from, .message.system .message-timestamp {
             display: none;
         }
 
-        #messages {
-            width: 100%;
-            height: 400px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 5px;
+        /* 회의록 전용 스타일 (디자인 복원) */
+        .message.meeting_notes {
+            align-self: center;
+            width: 95%;
+            max-width: 850px;
+            box-sizing: border-box;
+            padding: 5px 0;
         }
-
-        .message {
-            width: 100%;
-            max-width: 100%;
-            margin: 5px 0;
-            padding: 8px;
-            border-radius: 5px;
+        .meeting_notes .meeting-minutes-wrapper {
+            background-color: #ffffff; /* 흰색 배경 */
+            border: 1px solid #e0e4e8;
+            border-radius: 12px;
+            padding: 20px 25px;
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+            line-height: 1.7;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08); /* 그림자 효과 */
+            text-align: left; /* 내부 텍스트 좌측 정렬 */
         }
-
-        .system-message {
-            background-color: #f0f0f0;
-            color: #666;
-        }
-
-        .user-message {
-            background-color: #e3f2fd;
-            margin-left: 20px;
-        }
-
-        .ai-message {
-            background-color: #f5f5f5;
-            margin-right: 20px;
-        }
-
-        .other-message {
-            background-color: #fff3e0;
-        }
-
-        .username {
-            font-weight: bold;
-            margin-right: 5px;
-        }
-
-        .timestamp {
-            color: #666;
-            font-size: 0.8em;
-            margin-right: 5px;
-        }
-
-        .content {
-            word-break: break-word;
-        }
-
-        #message-form {
-            display: flex;
-            gap: 10px;
-        }
-
-        #message-input {
-            flex-grow: 1;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 16px;
-        }
-
-        button {
-            padding: 10px 20px;
-            background-color: #2196f3;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        button:hover {
-            background-color: #1976d2;
-        }
-
-        .user-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-        }
-
-        #user-list {
-            font-size: 14px;
-            color: #666;
-        }
-
-        .error-message {
-            color: #d32f2f;
-            margin-top: 10px;
+        .meeting_notes .meeting-minutes-title {
+            font-weight: 700;
+            font-size: 1.25em;
             text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .meeting_notes h1, .meeting_notes h2, .meeting_notes h3, .meeting_notes h4 {
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+            font-weight: 700;
+            color: #343a40;
+            margin-top: 1.5em;
+            margin-bottom: 0.8em;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .meeting_notes h1 { font-size: 1.8em; }
+        .meeting_notes h2 { font-size: 1.5em; }
+        .meeting_notes h3 { font-size: 1.25em; }
+        .meeting_notes ul, .meeting_notes ol {
+            padding-left: 20px;
+            margin-bottom: 1em;
+        }
+        .meeting_notes li {
+            margin-bottom: 0.5em;
+        }
+        .meeting_notes p {
+            margin-bottom: 1em;
+        }
+        .meeting_notes strong {
+            color: #0056b3;
         }
 
-        @media (max-width: 768px) {
-            .container {
-                margin: 0;
-                padding: 0;
-            }
-
-            .chat-wrapper {
-                border-radius: 0;
-                height: 100vh;
-            }
-
-            #chat-container {
-                height: 100vh;
-            }
-
-            .message {
-                max-width: 90%;
-            }
-        }
-
-        /* 메시지 스타일 통일 - 사람과 AI 구분 불가능하게 */
-        .message {
-            margin: 10px 0;
-            padding: 10px 15px;
-            border-radius: 15px;
-            max-width: 70%;
-            word-wrap: break-word;
-            position: relative;
-        }
-
-        .user-message, .ai-message, .other-message {
-            background-color: #f0f2f5;
-            color: #1c1e21;
-            margin-left: auto;
-            margin-right: 10px;
-        }
-
-        .system-message {
-            background-color: #e3f2fd;
-            color: #1976d2;
-            text-align: center;
-            margin: 10px auto;
-            font-style: italic;
-            font-size: 0.9em;
-        }
-
-        .username {
-            font-weight: bold;
-            color: #1976d2;
-            margin-right: 8px;
-        }
-
-        .timestamp {
-            font-size: 0.8em;
-            color: #666;
-            margin-right: 8px;
-        }
-
-        .content {
-            display: block;
-            margin-top: 5px;
-        }
-
-        /* 채팅 컨테이너 스타일 */
-        #chat-container {
-            display: flex;
-            flex-direction: column;
-            height: 80vh;
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        #chat-header {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 15px;
-            text-align: center;
-            font-weight: bold;
-        }
-
-        #messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            background-color: white;
-        }
-
-        #message-form {
+        #form {
             display: flex;
             padding: 15px;
-            background-color: #f8f9fa;
             border-top: 1px solid var(--border-color);
         }
-
-        #message-input {
-            flex: 1;
-            padding: 10px;
+        #input {
+            flex-grow: 1;
             border: 1px solid var(--border-color);
             border-radius: 20px;
-            margin-right: 10px;
-            font-size: 14px;
+            padding: 10px 15px;
+            font-size: 1em;
+            font-family: var(--font-family);
         }
-
-        #message-form button {
-            padding: 10px 20px;
-            background-color: var(--primary-color);
+        #input:focus {
+            outline: none;
+            border-color: #a0c4ff;
+            box-shadow: 0 0 0 2px rgba(160, 196, 255, 0.5);
+        }
+        #form button {
+            background-color: #4a90e2;
             color: white;
             border: none;
             border-radius: 20px;
+            padding: 10px 20px;
+            margin-left: 10px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 1em;
+            font-weight: 500;
+            transition: background-color 0.2s;
         }
-
-        #message-form button:hover {
-            background-color: #1976d2;
-        }
-
-        #message-form button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
+        #form button:hover {
+            background-color: #357abd;
         }
     </style>
 </head>
 <body>
-    <div id="login-form">
-        <h2>채팅 입장</h2>
-        <input type="text" id="username-input" placeholder="사용자 이름">
-        <input type="password" id="password-input" placeholder="AI 사용자 비밀번호 (선택사항)">
-        <button onclick="joinChat()">입장하기</button>
-        <p id="error-message" style="color: red;"></p>
-    </div>
-
-    <div id="chat-container" style="display: none;">
-        <div id="chat-header">
-            <span id="current-user"></span>
+    <div class="container-wrapper">
+        <div id="login-container">
+            <h1>채팅 참여</h1>
+            <input id="username" placeholder="사용자 이름을 입력하세요" />
+            <input id="password" type="password" placeholder="AI 비밀번호 (선택 사항)" />
+            <button id="join-btn">참여하기</button>
+            <p id="error-message"></p>
         </div>
-        <div id="messages"></div>
-        <form id="message-form">
-            <input type="text" id="message-input" placeholder="메시지를 입력하세요...">
-            <button type="submit">전송</button>
-        </form>
-    </div>
 
-    <div id="persona-modal" style="display:none; position:fixed; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.3); z-index:1000; justify-content:center; align-items:center;">
-        <div style="background:white; padding:30px; border-radius:10px; min-width:300px; text-align:center;">
-            <h3>AI 페르소나 입력</h3>
-            <input type="text" id="persona-input" placeholder="AI의 페르소나(성격, 말투, 취미 등) 입력 (선택)" style="width:90%; padding:10px; margin-bottom:15px;">
-            <br>
-            <button id="persona-random-btn" style="margin-right:10px;">랜덤 생성</button>
-            <button id="persona-done-btn">완료</button>
+        <!-- 페르소나 설정 UI (기존 UI 완벽 복원) -->
+        <div id="persona-container" style="display: none;">
+            <h1>AI 페르소나 설정</h1>
+            <input id="persona-input" placeholder="페르소나를 직접 입력하세요">
+            <div id="persona-buttons">
+                <button id="random-persona-btn">랜덤 선택</button>
+                <button id="set-persona-btn">채팅 시작</button>
+            </div>
+        </div>
+
+        <div id="chat-container">
+            <div id="chat-header">실시간 AI 채팅</div>
+            <div id="messages"></div>
+            <form id="form" action="">
+                <input id="input" autocomplete="off" /><button>전송</button>
+            </form>
         </div>
     </div>
 
     <script>
         const socket = io();
-        let currentUsername = '';
-        let isAIUser = false;
-        let pendingJoinData = null;
+        let myUsername = '';
 
-        function joinChat() {
-            const usernameInput = document.getElementById('username-input');
-            const passwordInput = document.getElementById('password-input');
-            const errorMessage = document.getElementById('error-message');
+        const messagesDiv = document.getElementById('messages');
+        const form = document.getElementById('form');
+        const input = document.getElementById('input');
+        const loginContainer = document.getElementById('login-container');
+        const chatContainer = document.getElementById('chat-container');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const joinBtn = document.getElementById('join-btn');
+        const errorMsg = document.getElementById('error-message');
+        const personaContainer = document.getElementById('persona-container');
+        const personaInput = document.getElementById('persona-input');
+        const randomPersonaBtn = document.getElementById('random-persona-btn');
+        const setPersonaBtn = document.getElementById('set-persona-btn');
+        
+        const personaPool = [ '쾌활하고 수다스러운 20대 대학생', '차분하고 논리적인 30대 직장인', '감성적이고 공감 잘하는 40대', '냉정하고 직설적인 성격' ];
+
+        chatContainer.style.display = 'none';
+        if(personaContainer) personaContainer.style.display = 'none';
+
+        // Event Listeners for Login
+        joinBtn.addEventListener('click', () => {
             const username = usernameInput.value.trim();
-            const password = passwordInput.value.trim();
-
             if (!username) {
-                errorMessage.textContent = '사용자 이름을 입력해주세요.';
+                errorMsg.textContent = '사용자 이름은 비워둘 수 없습니다.';
                 return;
             }
-
-            // AI 사용자: 비밀번호가 5001일 때만
-            if (password === '5001') {
-                // 페르소나 입력 모달 띄우기
-                pendingJoinData = { username, isAI: true, password };
-                document.getElementById('persona-modal').style.display = 'flex';
-                document.getElementById('persona-input').value = '';
-                return;
-            }
-
-            // 일반 사용자: 바로 입장
-            errorMessage.textContent = '';
-            socket.emit('join', { username, isAI: false, password });
-        }
-
-        // 페르소나 입력 후 '완료' 버튼 클릭 시
-        window.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('persona-done-btn').onclick = function() {
-                if (!pendingJoinData) return;
-                const persona = document.getElementById('persona-input').value.trim();
-                document.getElementById('persona-modal').style.display = 'none';
-                socket.emit('join', { ...pendingJoinData, persona });
-                pendingJoinData = null;
-            };
-            // 랜덤 생성 버튼 클릭 시 랜덤 페르소나 부여
-            document.getElementById('persona-random-btn').onclick = function() {
-                const personaPool = [
-                    '쾌활하고 수다스러운 20대 대학생, 농담을 자주 함',
-                    '차분하고 논리적인 30대 직장인, 정보 전달을 좋아함',
-                    '감성적이고 공감 잘하는 40대, 리액션이 풍부함',
-                    '냉정하고 직설적인 성격, 짧고 단호한 답변을 선호함',
-                    '호기심 많고 질문을 자주 하는 어린이',
-                    '유머러스하고 장난기 많은 친구',
-                    '진지하고 분석적인 전문가',
-                    '느긋하고 여유로운 여행가',
-                    '트렌디하고 패션에 관심 많은 인플루언서',
-                    '책임감 강한 리더형',
-                ];
-                const randomPersona = personaPool[Math.floor(Math.random() * personaPool.length)];
-                document.getElementById('persona-input').value = randomPersona;
-            };
+            const password = passwordInput.value;
+            socket.emit('join', { username, password });
         });
 
-        // 채팅 메시지 표시 함수
-        function escapeHTML(str) {
-            return (str || '').replace(/[&<>'"]/g, tag => ({
-                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-            }[tag]));
-        }
-        function displayMessage(data) {
-            try {
-                const messagesDiv = document.getElementById('messages');
-                const messageDiv = document.createElement('div');
-                
-                // 시간 포맷팅
-                const timestamp = new Date(data.timestamp);
-                const timeString = timestamp.toLocaleTimeString('ko-KR');
-                
-                // 메시지 타입에 따른 스타일 지정
-                let messageClass = 'other-message';
-                // 대화명 판별: data.from 우선, 없으면 data.username
-                const displayName = data.from || data.username || 'undefined';
-                if (displayName === 'System') {
-                    messageClass = 'system-message';
-                } else if (displayName === currentUsername) {
-                    messageClass = 'user-message';
-                } else if (displayName.startsWith('AI')) {
-                    messageClass = 'ai-message';
-                }
-                
-                messageDiv.className = `message ${messageClass}`;
-                // 줄바꿈(\n)을 <br>로 변환, XSS 방지
-                const safeContent = escapeHTML(data.content || '').replace(/\n/g, '<br>');
-                messageDiv.innerHTML = `
-                    <span class="username">${displayName}</span>
-                    <span class="timestamp">(${timeString})</span>
-                    <span class="content">${safeContent}</span>
-                `;
-                
-                messagesDiv.appendChild(messageDiv);
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                
-                // 메시지 DOM이 100개를 넘으면 오래된 메시지 제거
-                while (messagesDiv.children.length > 100) {
-                    messagesDiv.removeChild(messagesDiv.firstChild);
-                }
-                
-                console.log('메시지 표시:', {
-                    username: displayName,
-                    content: data.content,
-                    timestamp: timeString,
-                    class: messageClass
-                });
-            } catch (error) {
-                console.error('메시지 표시 중 오류:', error);
+        usernameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinBtn.click();
             }
-        }
+        });
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinBtn.click();
+            }
+        });
 
-        // 메시지 전송 처리
-        document.getElementById('message-form').onsubmit = (e) => {
+        randomPersonaBtn.addEventListener('click', () => {
+            personaInput.value = personaPool[Math.floor(Math.random() * personaPool.length)];
+        });
+
+        setPersonaBtn.addEventListener('click', () => {
+            const persona = personaInput.value.trim();
+            
+            if (!persona) {
+                alert('페르소나를 입력하거나 랜덤으로 선택해주세요.');
+                return;
+            }
+
+            socket.emit('set_persona', { persona });
+            
+            personaContainer.style.display = 'none';
+            chatContainer.style.display = 'flex';
+            
+            input.disabled = true;
+            input.placeholder = 'AI는 메시지를 입력할 수 없습니다.';
+            document.querySelector('#form button').disabled = true;
+        });
+
+        form.addEventListener('submit', (e) => {
             e.preventDefault();
-            const messageInput = document.getElementById('message-input');
-            const message = messageInput.value.trim();
-            
-            if (message && !isAIUser) {
-                console.log('메시지 전송:', message);
-                socket.emit('chat_message', message);
-                messageInput.value = '';
+            if (input.value) {
+                socket.emit('chat_message', input.value);
+                input.value = '';
             }
-        };
-
-        // 서버로부터 메시지 수신
-        socket.on('message', (data) => {
-            console.log('채팅 메시지 수신:', data);
-            displayMessage(data);
         });
 
-        // 입장 성공
-        socket.on('join_success', (data) => {
-            currentUsername = data.username;
-            isAIUser = data.isAI;
-            
-            document.getElementById('login-form').style.display = 'none';
-            document.getElementById('chat-container').style.display = 'block';
-            document.getElementById('current-user').textContent = `현재 사용자: ${currentUsername}${isAIUser ? ' (AI)' : ''}`;
+        // Helper Functions
+        function addMessage(msg) {
+            try {
+                const messageEl = document.createElement('div');
+                messageEl.classList.add('message');
+                if (msg.type) messageEl.classList.add(msg.type);
 
-            // AI 사용자인 경우 메시지 입력 비활성화
-            const messageInput = document.getElementById('message-input');
-            const sendButton = document.querySelector('#message-form button');
-            if (isAIUser) {
-                messageInput.disabled = true;
-                sendButton.disabled = true;
-                messageInput.placeholder = 'AI 사용자는 메시지를 입력할 수 없습니다.';
-                document.getElementById('message-form').style.pointerEvents = 'none';
-                messageInput.style.backgroundColor = '#f5f5f5';
+                const isMine = msg.from === myUsername;
+                if (isMine) messageEl.classList.add('mine');
+
+                if (msg.type === 'system') {
+                    const contentEl = document.createElement('div');
+                    contentEl.classList.add('message-content');
+                    contentEl.textContent = msg.content;
+                    messageEl.appendChild(contentEl);
+                } else if (msg.type === 'meeting_notes') {
+                    const parts = msg.content.split('---');
+                    const title = parts[1] || '회의록';
+                    const body = parts[2] || '';
+
+                    messageEl.innerHTML = `
+                        <div class="meeting-minutes-wrapper">
+                            <div class="meeting-minutes-title">${title.trim()}</div>
+                            <div class="meeting-minutes-body">${marked.parse(body.trim())}</div>
+                        </div>
+                    `;
+                } else {
+                    const fromEl = document.createElement('div');
+                    fromEl.classList.add('message-from');
+                    fromEl.textContent = msg.from;
+
+                    const bodyWrapper = document.createElement('div');
+                    bodyWrapper.classList.add('message-body');
+
+                    const bubbleEl = document.createElement('div');
+                    bubbleEl.classList.add('message-bubble');
+
+                    const contentEl = document.createElement('div');
+                    contentEl.classList.add('message-content');
+                    contentEl.textContent = msg.content;
+                    
+                    const timestampEl = document.createElement('div');
+                    timestampEl.classList.add('message-timestamp');
+                    timestampEl.textContent = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                    
+                    bubbleEl.appendChild(contentEl);
+                    bodyWrapper.appendChild(bubbleEl);
+                    bodyWrapper.appendChild(timestampEl);
+                    
+                    messageEl.appendChild(fromEl);
+                    messageEl.appendChild(bodyWrapper);
+                }
+
+                messagesDiv.appendChild(messageEl);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (error) {
+                console.error('메시지 렌더링 중 오류 발생:', error, msg);
             }
+        }
+
+        // Socket Event Listeners
+        socket.on('join_success', ({ username, isAI, users }) => {
+            myUsername = username;
             
-            console.log('입장 성공:', data);
+            if (isAI) {
+                loginContainer.style.display = 'none';
+                personaContainer.style.display = 'flex';
+            } else {
+                loginContainer.style.display = 'none';
+                chatContainer.style.display = 'flex';
+            }
+            updateUserList(users);
         });
 
-        // 입장 오류
-        socket.on('join_error', (message) => {
-            document.getElementById('error-message').textContent = message;
-            console.error('입장 오류:', message);
+        socket.on('join_error', (error) => {
+            errorMsg.textContent = error;
+            errorMsg.style.display = 'block';
         });
+
+        socket.on('userList', (users) => {
+            updateUserList(users);
+        });
+        
+        socket.on('message', (msg) => {
+            addMessage(msg);
+        });
+
+        function updateUserList(users) {
+            // Implementation of updateUserList function
+        }
     </script>
 </body>
-</html> 
+</html>
